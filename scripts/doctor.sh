@@ -35,7 +35,15 @@ else
 fi
 
 if command -v ccx >/dev/null 2>&1; then
-  pass "Launcher: $(command -v ccx)"
+  launcher_path="$(command -v ccx)"
+  pass "Launcher: $launcher_path"
+  if grep -qF 'CCX_CONFIG_FILE' "$launcher_path" 2>/dev/null; then
+    while IFS= read -r config_line; do
+      info "$config_line"
+    done < <(ccx config 2>/dev/null)
+  else
+    info 'Installed launcher predates persistent Claudex configuration'
+  fi
 else
   fail 'ccx is not on PATH; add ~/.local/bin to PATH'
 fi
@@ -55,13 +63,12 @@ if command -v brew >/dev/null 2>&1; then
   fi
 fi
 
-info 'Default model: GPT-5.6 Sol'
-info 'Normal root effort: xhigh'
-info 'ccx bg root effort: medium'
-if [[ -f "$HOME/.claude/agents/claudex-worker.md" ]] && grep -q '^effort: high$' "$HOME/.claude/agents/claudex-worker.md"; then
-  pass 'Custom claudex-worker effort: high'
+agent_file="${CCX_AGENT_DIR:-$HOME/.claude/agents}/claudex-worker.md"
+if [[ -f "$agent_file" ]]; then
+  agent_effort="$(awk -F': ' '$1 == "effort" {print $2; exit}' "$agent_file")"
+  pass "Custom claudex-worker effort: ${agent_effort:-unknown}"
 else
-  info 'Optional high-effort claudex-worker is not installed'
+  info 'Optional claudex-worker is not installed'
 fi
 
 if [[ "$failures" -gt 0 ]]; then

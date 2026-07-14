@@ -1,0 +1,10 @@
+# Managed by https://github.com/migueltorrezd/claudex
+# Plain key=value configuration. Do not put credentials in this file.
+CCX_MODEL=sol
+CCX_MAIN_EFFORT=xhigh
+CCX_BG_MODEL=sol
+CCX_BG_EFFORT=medium
+CCX_SMALL_FAST_MODEL=gpt-5.6-sol[1m]
+CCX_SUBAGENT_EFFORT=high
+CCX_CONTEXT_WINDOW=272000
+CCX_PROXY_URL=http://127.0.0.1:18765

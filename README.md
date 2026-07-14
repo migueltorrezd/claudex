@@ -14,6 +14,7 @@ Claudex is a small, opinionated setup layer around [Claude Code](https://code.cl
 - Sol for Claude Code's small/background utility requests instead of silently falling back to a Haiku alias the proxy cannot route.
 - Sol at medium effort for the dedicated `ccx bg` lane.
 - An optional custom background sub-agent configured at high effort.
+- An interactive wizard that asks which models and effort levels you want.
 - Proxy health checks and automatic Homebrew service recovery.
 - No API key in the repository. Authentication is handled by the proxy's Codex OAuth flow.
 
@@ -41,14 +42,31 @@ The upstream proxy also publishes Windows binaries, but this repository's servic
 ```bash
 git clone https://github.com/migueltorrezd/claudex.git
 cd claudex
-./scripts/install.sh --with-agent
+./scripts/setup.sh
 ```
 
-If Codex OAuth is not configured yet, the installer stops with the exact login command. Run:
+The wizard asks you to choose:
+
+1. The main model and its reasoning effort.
+2. The model and effort for the `ccx bg` lane.
+3. The utility model used for titles, token counting, and small background requests.
+4. The optional custom sub-agent's effort.
+5. Whether to install that agent, complete OAuth, and start the background service.
+
+Every question shows the recommended/current value. Before writing anything, the wizard displays a complete summary and asks for confirmation. Preferences are saved to `~/.config/claudex/config`; an existing config is backed up before it changes. OAuth credentials are never stored there.
+
+The tested defaults are:
+
+- Main session: GPT-5.6 Sol at `xhigh` effort.
+- Background lane: GPT-5.6 Sol at `medium` effort.
+- Utility requests: GPT-5.6 Sol.
+- Custom sub-agent: `high` effort.
+
+If Codex OAuth is not configured yet and you decline browser login in the wizard, run:
 
 ```bash
 claude-code-proxy codex auth login
-./scripts/install.sh --with-agent
+./scripts/setup.sh
 ```
 
 The first command opens the official browser OAuth flow. On a headless machine, use:
@@ -65,13 +83,22 @@ export PATH="$HOME/.local/bin:$PATH"
 
 Add that line to `~/.zshrc` or `~/.bashrc` if necessary.
 
-For a non-default installation location, set `CCX_INSTALL_DIR`. Tests and managed environments can also set `CCX_AGENT_DIR` for the optional agent definition.
+For non-default locations, set `CCX_INSTALL_DIR`, `CCX_AGENT_DIR`, or `CCX_CONFIG_DIR`.
+
+For automation or an AI agent, keep the deterministic installer:
+
+```bash
+./scripts/install.sh --with-agent
+```
+
+The wizard also accepts explicit non-interactive flags. Run `./scripts/setup.sh --help` for the full list.
 
 Verify the complete installation:
 
 ```bash
 ./scripts/doctor.sh
 ccx models
+ccx config
 ccx
 ```
 
@@ -119,8 +146,10 @@ The launcher supports these environment overrides:
 
 | Variable | Default | Purpose |
 |---|---:|---|
+| `CCX_CONFIG_FILE` | `~/.config/claudex/config` | Persistent wizard configuration |
 | `CCX_MODEL` | `sol` | Default main model alias or supported model ID |
 | `CCX_MAIN_EFFORT` | `xhigh` | Normal root-session effort |
+| `CCX_BG_MODEL` | `sol` | Model used by `ccx bg` |
 | `CCX_BG_EFFORT` | `medium` | Root-session effort for `ccx bg` |
 | `CCX_SMALL_FAST_MODEL` | `gpt-5.6-sol[1m]` | Claude utility/background-request model |
 | `CCX_CONTEXT_WINDOW` | `272000` | Auto-compaction boundary |
@@ -133,6 +162,8 @@ Example:
 CCX_MODEL=terra CCX_MAIN_EFFORT=high ccx
 ```
 
+Environment variables and explicit command-line arguments override the saved configuration. Run `ccx config` to see the resolved defaults.
+
 ## Effort and sub-agents
 
 These are three separate controls:
@@ -142,6 +173,8 @@ These are three separate controls:
 3. Custom sub-agent definitions can set `effort: high` in their YAML frontmatter.
 
 Install the included example with `./scripts/install.sh --with-agent`, or copy [`examples/agents/claudex-worker.md`](examples/agents/claudex-worker.md) into `~/.claude/agents/`.
+
+The setup wizard can select a different effort for this custom agent and safely renders that value during installation.
 
 The launcher intentionally uses Claude Code's `--effort` session option instead of `CLAUDE_CODE_EFFORT_LEVEL`. The environment variable has higher precedence and would prevent a custom agent's `effort: high` frontmatter from overriding its parent session.
 
@@ -199,7 +232,7 @@ Update Claudex:
 
 ```bash
 git pull --ff-only
-./scripts/install.sh --with-agent
+./scripts/setup.sh
 ```
 
 Uninstall only the Claudex launcher and optional example agent:

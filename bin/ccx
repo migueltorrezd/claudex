@@ -2,9 +2,33 @@
 # Managed by https://github.com/migueltorrezd/claudex
 set -euo pipefail
 
-proxy_url="${CCX_PROXY_URL:-http://127.0.0.1:18765}"
-background_model="${CCX_SMALL_FAST_MODEL:-${CCX_BACKGROUND_MODEL:-gpt-5.6-sol[1m]}}"
-default_context_window="${CCX_CONTEXT_WINDOW:-272000}"
+config_file="${CCX_CONFIG_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/claudex/config}"
+config_model=''
+config_main_effort=''
+config_bg_model=''
+config_bg_effort=''
+config_small_fast_model=''
+config_context_window=''
+config_proxy_url=''
+
+if [[ -f "$config_file" ]]; then
+  while IFS='=' read -r config_key config_value; do
+    config_value="${config_value%$'\r'}"
+    case "$config_key" in
+      CCX_MODEL) config_model="$config_value" ;;
+      CCX_MAIN_EFFORT) config_main_effort="$config_value" ;;
+      CCX_BG_MODEL) config_bg_model="$config_value" ;;
+      CCX_BG_EFFORT) config_bg_effort="$config_value" ;;
+      CCX_SMALL_FAST_MODEL) config_small_fast_model="$config_value" ;;
+      CCX_CONTEXT_WINDOW) config_context_window="$config_value" ;;
+      CCX_PROXY_URL) config_proxy_url="$config_value" ;;
+    esac
+  done < "$config_file"
+fi
+
+proxy_url="${CCX_PROXY_URL:-${config_proxy_url:-http://127.0.0.1:18765}}"
+background_model="${CCX_SMALL_FAST_MODEL:-${CCX_BACKGROUND_MODEL:-${config_small_fast_model:-gpt-5.6-sol[1m]}}}"
+default_context_window="${CCX_CONTEXT_WINDOW:-${config_context_window:-272000}}"
 
 print_models() {
   cat <<'EOF'
@@ -23,7 +47,7 @@ Models:
   5.2       GPT-5.2
 
 Modes:
-  bg        GPT-5.6 Sol with medium root-session effort
+  bg        Configured background lane (default: GPT-5.6 Sol, medium)
 
 Examples:
   ccx
@@ -33,14 +57,39 @@ Examples:
   ccx --effort high -p "Review this repository"
 
 Environment:
+  CCX_CONFIG_FILE        Config path (default: ~/.config/claudex/config)
   CCX_MODEL              Default main-model alias or ID (default: sol)
   CCX_MAIN_EFFORT        Normal root-session effort (default: xhigh)
+  CCX_BG_MODEL           Model for ccx bg (default: sol)
   CCX_BG_EFFORT          Root effort for ccx bg (default: medium)
   CCX_SMALL_FAST_MODEL   Utility/background-request model
   CCX_CONTEXT_WINDOW     Auto-compaction boundary (default: 272000)
   CCX_PROXY_URL          Local proxy URL (default: http://127.0.0.1:18765)
   CCX_REAL_CLAUDE        Claude Code executable
 EOF
+}
+
+print_config() {
+  cat <<EOF
+Config file: $config_file
+Main model: ${CCX_MODEL:-${config_model:-sol}}
+Main effort: ${CCX_MAIN_EFFORT:-${config_main_effort:-xhigh}}
+Background model: ${CCX_BG_MODEL:-${config_bg_model:-sol}}
+Background effort: ${CCX_BG_EFFORT:-${CCX_BACKGROUND_EFFORT:-${config_bg_effort:-medium}}}
+Utility model: $background_model
+Context window: $default_context_window
+Proxy URL: $proxy_url
+EOF
+}
+
+validate_effort() {
+  case "$1" in
+    low|medium|high|xhigh|max) ;;
+    *)
+      printf "ccx: unsupported effort '%s' (expected low, medium, high, xhigh, or max)\n" "$1" >&2
+      return 1
+      ;;
+  esac
 }
 
 resolve_model() {
@@ -93,12 +142,16 @@ resolve_model() {
   esac
 }
 
-requested_model="${CCX_MODEL:-sol}"
-selected_effort="${CCX_MAIN_EFFORT:-xhigh}"
+requested_model="${CCX_MODEL:-${config_model:-sol}}"
+selected_effort="${CCX_MAIN_EFFORT:-${config_main_effort:-xhigh}}"
 
 case "${1:-}" in
   models|--models)
     print_models
+    exit 0
+    ;;
+  config|--config)
+    print_config
     exit 0
     ;;
   --model|-m)
@@ -110,8 +163,8 @@ case "${1:-}" in
     shift 2
     ;;
   bg|background)
-    requested_model='sol'
-    selected_effort="${CCX_BG_EFFORT:-${CCX_BACKGROUND_EFFORT:-medium}}"
+    requested_model="${CCX_BG_MODEL:-${config_bg_model:-sol}}"
+    selected_effort="${CCX_BG_EFFORT:-${CCX_BACKGROUND_EFFORT:-${config_bg_effort:-medium}}}"
     shift
     ;;
   sol|sol-fast|terra|luna|5.5|5.4|mini|5.3|spark|5.2)
@@ -120,6 +173,7 @@ case "${1:-}" in
     ;;
 esac
 
+validate_effort "$selected_effort"
 resolve_model "$requested_model"
 
 claude_bin="${CCX_REAL_CLAUDE:-}"

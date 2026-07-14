@@ -25,4 +25,18 @@ grep -q '^ARG=high$' <<<"$override_output"
 terra_output="$(CCX_REAL_CLAUDE="$stub" CCX_SKIP_HEALTH_CHECK=1 "$launcher" terra -p test)"
 grep -q '^MODEL=gpt-5.6-terra\[1m\]$' <<<"$terra_output"
 
+custom_config="$repo_root/tests/fixtures/custom.conf"
+configured_output="$(CCX_CONFIG_FILE="$custom_config" CCX_REAL_CLAUDE="$stub" CCX_SKIP_HEALTH_CHECK=1 "$launcher" -p test)"
+grep -q '^MODEL=gpt-5.6-terra\[1m\]$' <<<"$configured_output"
+grep -q '^SMALL_FAST=gpt-5.4-mini\[1m\]$' <<<"$configured_output"
+grep -q '^ARG=high$' <<<"$configured_output"
+
+configured_bg_output="$(CCX_CONFIG_FILE="$custom_config" CCX_REAL_CLAUDE="$stub" CCX_SKIP_HEALTH_CHECK=1 "$launcher" bg -p test)"
+grep -q '^MODEL=gpt-5.6-luna\[1m\]$' <<<"$configured_bg_output"
+grep -q '^ARG=low$' <<<"$configured_bg_output"
+
+config_output="$(CCX_CONFIG_FILE="$custom_config" "$launcher" config)"
+grep -q '^Main model: terra$' <<<"$config_output"
+grep -q '^Background effort: low$' <<<"$config_output"
+
 printf 'All ccx launcher tests passed.\n'

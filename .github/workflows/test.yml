@@ -13,6 +13,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Check shell syntax
-        run: bash -n bin/ccx scripts/install.sh scripts/doctor.sh tests/stub-claude.sh tests/test-ccx.sh
+        run: bash -n bin/ccx scripts/setup.sh scripts/install.sh scripts/doctor.sh tests/stub-claude.sh tests/test-ccx.sh tests/test-setup.sh
       - name: Test launcher behavior
         run: bash tests/test-ccx.sh
+      - name: Test setup wizard
+        run: bash tests/test-setup.sh
