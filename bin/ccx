@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+# Managed by https://github.com/migueltorrezd/claudex
+set -euo pipefail
+
+proxy_url="${CCX_PROXY_URL:-http://127.0.0.1:18765}"
+background_model="${CCX_SMALL_FAST_MODEL:-${CCX_BACKGROUND_MODEL:-gpt-5.6-sol[1m]}}"
+default_context_window="${CCX_CONTEXT_WINDOW:-272000}"
+
+print_models() {
+  cat <<'EOF'
+Usage: ccx [model|bg] [claude arguments]
+
+Models:
+  sol       GPT-5.6 Sol (default)
+  sol-fast  GPT-5.6 Sol, priority service tier
+  terra     GPT-5.6 Terra
+  luna      GPT-5.6 Luna
+  5.5       GPT-5.5
+  5.4       GPT-5.4
+  mini      GPT-5.4 Mini
+  5.3       GPT-5.3 Codex
+  spark     GPT-5.3 Codex Spark
+  5.2       GPT-5.2
+
+Modes:
+  bg        GPT-5.6 Sol with medium root-session effort
+
+Examples:
+  ccx
+  ccx terra
+  ccx bg
+  ccx bg --bg "Run tests and fix failures"
+  ccx --effort high -p "Review this repository"
+
+Environment:
+  CCX_MODEL              Default main-model alias or ID (default: sol)
+  CCX_MAIN_EFFORT        Normal root-session effort (default: xhigh)
+  CCX_BG_EFFORT          Root effort for ccx bg (default: medium)
+  CCX_SMALL_FAST_MODEL   Utility/background-request model
+  CCX_CONTEXT_WINDOW     Auto-compaction boundary (default: 272000)
+  CCX_PROXY_URL          Local proxy URL (default: http://127.0.0.1:18765)
+  CCX_REAL_CLAUDE        Claude Code executable
+EOF
+}
+
+resolve_model() {
+  case "$1" in
+    sol|gpt-5.6-sol|'gpt-5.6-sol[1m]')
+      selected_model='gpt-5.6-sol[1m]'
+      model_name='GPT-5.6 Sol'
+      ;;
+    sol-fast|gpt-5.6-sol-fast|'gpt-5.6-sol-fast[1m]')
+      selected_model='gpt-5.6-sol-fast[1m]'
+      model_name='GPT-5.6 Sol Fast'
+      ;;
+    terra|gpt-5.6-terra|'gpt-5.6-terra[1m]')
+      selected_model='gpt-5.6-terra[1m]'
+      model_name='GPT-5.6 Terra'
+      ;;
+    luna|gpt-5.6-luna|'gpt-5.6-luna[1m]')
+      selected_model='gpt-5.6-luna[1m]'
+      model_name='GPT-5.6 Luna'
+      ;;
+    5.5|gpt-5.5|'gpt-5.5[1m]')
+      selected_model='gpt-5.5[1m]'
+      model_name='GPT-5.5'
+      ;;
+    5.4|gpt-5.4|'gpt-5.4[1m]')
+      selected_model='gpt-5.4[1m]'
+      model_name='GPT-5.4'
+      ;;
+    mini|5.4-mini|gpt-5.4-mini|'gpt-5.4-mini[1m]')
+      selected_model='gpt-5.4-mini[1m]'
+      model_name='GPT-5.4 Mini'
+      ;;
+    5.3|gpt-5.3-codex|'gpt-5.3-codex[1m]')
+      selected_model='gpt-5.3-codex[1m]'
+      model_name='GPT-5.3 Codex'
+      ;;
+    spark|5.3-spark|gpt-5.3-codex-spark)
+      selected_model='gpt-5.3-codex-spark'
+      model_name='GPT-5.3 Codex Spark'
+      ;;
+    5.2|gpt-5.2|'gpt-5.2[1m]')
+      selected_model='gpt-5.2[1m]'
+      model_name='GPT-5.2'
+      ;;
+    *)
+      printf "ccx: unsupported model '%s'\n" "$1" >&2
+      print_models >&2
+      return 1
+      ;;
+  esac
+}
+
+requested_model="${CCX_MODEL:-sol}"
+selected_effort="${CCX_MAIN_EFFORT:-xhigh}"
+
+case "${1:-}" in
+  models|--models)
+    print_models
+    exit 0
+    ;;
+  --model|-m)
+    if [[ $# -lt 2 ]]; then
+      printf 'ccx: %s requires a model\n' "$1" >&2
+      exit 2
+    fi
+    requested_model="$2"
+    shift 2
+    ;;
+  bg|background)
+    requested_model='sol'
+    selected_effort="${CCX_BG_EFFORT:-${CCX_BACKGROUND_EFFORT:-medium}}"
+    shift
+    ;;
+  sol|sol-fast|terra|luna|5.5|5.4|mini|5.3|spark|5.2)
+    requested_model="$1"
+    shift
+    ;;
+esac
+
+resolve_model "$requested_model"
+
+claude_bin="${CCX_REAL_CLAUDE:-}"
+if [[ -z "$claude_bin" ]]; then
+  claude_bin="$(command -v claude || true)"
+fi
+if [[ -z "$claude_bin" || ! -x "$claude_bin" ]]; then
+  printf 'ccx: Claude Code is missing or not executable. Set CCX_REAL_CLAUDE or install Claude Code.\n' >&2
+  exit 1
+fi
+
+health_check() {
+  curl --silent --fail --max-time 1 "$proxy_url/healthz" >/dev/null 2>&1
+}
+
+start_proxy() {
+  if command -v brew >/dev/null 2>&1; then
+    brew services start claude-code-proxy >/dev/null 2>&1 || \
+      brew services start raine/claude-code-proxy/claude-code-proxy >/dev/null 2>&1 || true
+  elif command -v claude-code-proxy >/dev/null 2>&1; then
+    local log_dir="${XDG_STATE_HOME:-$HOME/.local/state}/claude-code-proxy"
+    mkdir -p "$log_dir"
+    nohup claude-code-proxy serve --no-monitor >>"$log_dir/service.log" 2>&1 &
+  fi
+
+  local attempt
+  for attempt in $(seq 1 50); do
+    if health_check; then
+      return 0
+    fi
+    sleep 0.1
+  done
+  return 1
+}
+
+if [[ "${CCX_SKIP_HEALTH_CHECK:-0}" != '1' ]] && ! health_check; then
+  if ! start_proxy; then
+    printf 'ccx: proxy did not become healthy at %s/healthz\n' "$proxy_url" >&2
+    printf 'ccx: run ./scripts/doctor.sh from the Claudex repository for diagnostics.\n' >&2
+    exit 1
+  fi
+fi
+
+export ANTHROPIC_BASE_URL="$proxy_url"
+export ANTHROPIC_AUTH_TOKEN='unused'
+export ANTHROPIC_MODEL="$selected_model"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="$background_model"
+export ANTHROPIC_SMALL_FAST_MODEL="$background_model"
+export ANTHROPIC_CUSTOM_MODEL_OPTION="$selected_model"
+export ANTHROPIC_CUSTOM_MODEL_OPTION_NAME="$model_name (OpenAI subscription)"
+export CLAUDE_CODE_AUTO_COMPACT_WINDOW="$default_context_window"
+export CLAUDE_CODE_ALWAYS_ENABLE_EFFORT="${CLAUDE_CODE_ALWAYS_ENABLE_EFFORT:-1}"
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC='1'
+export CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK='1'
+
+has_effort_argument=0
+for argument in "$@"; do
+  if [[ "$argument" == '--effort' || "$argument" == --effort=* ]]; then
+    has_effort_argument=1
+    break
+  fi
+done
+
+claude_command=("$claude_bin" --model "$selected_model")
+if [[ "$has_effort_argument" -eq 0 ]]; then
+  claude_command+=(--effort "$selected_effort")
+fi
+
+exec "${claude_command[@]}" "$@"
