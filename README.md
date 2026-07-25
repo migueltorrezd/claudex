@@ -199,6 +199,22 @@ It deliberately does **not** set:
 - `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY=3`, because that is a throttle, not a quality improvement;
 - `CLAUDE_CODE_SUBAGENT_MODEL`, because it overrides per-agent model choices.
 
+## Reliability: auth gate and retry shim
+
+Two failure modes matter in practice, and the launcher now defends against both.
+
+**Dead token at launch.** The proxy's `/healthz` endpoint only proves the HTTP server is up; it says nothing about the Codex OAuth token. Before handing off to Claude Code, `ccx` runs `claude-code-proxy codex auth status` and refuses to start a session that would only produce 401 errors, telling you to run `claude-code-proxy codex auth login` instead.
+
+**Transient 401s under parallel load.** During token refresh the proxy can briefly answer some requests with `401 Authentication failed` while others succeed. Claude Code treats 401 as terminal for a subagent, so a single flapped request kills an entire agent, and fan-out workloads (sub-agents, workflows) lose their whole fleet to a flap that an interactive user would not even notice. `scripts/ccx-retry-shim.py` is a small stdlib-only proxy that sits in front of `claude-code-proxy` and transparently retries 401/502/503/529 responses with backoff before the client ever sees them.
+
+To use the shim, run it as a service listening on a free local port (default `18767`) and set `CCX_SHIM_URL` in `~/.config/claudex/config`:
+
+```
+CCX_SHIM_URL=http://127.0.0.1:18767
+```
+
+On macOS a minimal launchd agent works well (`RunAtLoad` + `KeepAlive`, `ProgramArguments = [/usr/bin/python3, /path/to/ccx-retry-shim.py]`); on Linux use a systemd user unit. The launcher health-checks the shim and falls back to the proxy directly, with a warning, when the shim is down. `/healthz` requests pass through the shim, so one check validates the whole chain.
+
 ## Models
 
 At the time of writing, the upstream proxy recognizes these Codex model IDs:

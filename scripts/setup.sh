@@ -82,7 +82,8 @@ read_config_value() {
   if [[ ! -f "$config_target" ]]; then
     return
   fi
-  while IFS='=' read -r key value; do
+  # `|| [[ -n ... ]]` keeps the final line even without a trailing newline.
+  while IFS='=' read -r key value || [[ -n "$key" ]]; do
     if [[ "$key" == "$wanted_key" ]]; then
       CONFIG_VALUE="${value%$'\r'}"
     fi
@@ -320,7 +321,9 @@ CCX_BG_MODEL=$bg_model
 CCX_BG_EFFORT=$bg_effort
 CCX_SMALL_FAST_MODEL=$utility_wire_model
 CCX_SUBAGENT_EFFORT=$subagent_effort
-CCX_CONTEXT_WINDOW=272000
+# CCX_CONTEXT_WINDOW is intentionally unset: the launcher picks the correct
+# per-model boundary (272000 for most lanes, 128000 for spark). Set it only
+# to force a specific value for every model.
 CCX_PROXY_URL=http://127.0.0.1:18765
 EOF
 chmod 0644 "$rendered_config"

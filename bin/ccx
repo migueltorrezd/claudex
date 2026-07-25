@@ -10,10 +10,20 @@ config_bg_effort=''
 config_small_fast_model=''
 config_context_window=''
 config_proxy_url=''
+config_shim_url=''
+
+trim() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "$value"
+}
 
 if [[ -f "$config_file" ]]; then
-  while IFS='=' read -r config_key config_value; do
-    config_value="${config_value%$'\r'}"
+  # `|| [[ -n ... ]]` keeps the final line even without a trailing newline.
+  while IFS='=' read -r config_key config_value || [[ -n "$config_key" ]]; do
+    config_key="$(trim "${config_key%$'\r'}")"
+    config_value="$(trim "${config_value%$'\r'}")"
     case "$config_key" in
       CCX_MODEL) config_model="$config_value" ;;
       CCX_MAIN_EFFORT) config_main_effort="$config_value" ;;
@@ -22,13 +32,14 @@ if [[ -f "$config_file" ]]; then
       CCX_SMALL_FAST_MODEL) config_small_fast_model="$config_value" ;;
       CCX_CONTEXT_WINDOW) config_context_window="$config_value" ;;
       CCX_PROXY_URL) config_proxy_url="$config_value" ;;
+      CCX_SHIM_URL) config_shim_url="$config_value" ;;
     esac
   done < "$config_file"
 fi
 
 proxy_url="${CCX_PROXY_URL:-${config_proxy_url:-http://127.0.0.1:18765}}"
+shim_url="${CCX_SHIM_URL:-${config_shim_url:-}}"
 background_model="${CCX_SMALL_FAST_MODEL:-${CCX_BACKGROUND_MODEL:-${config_small_fast_model:-gpt-5.6-sol[1m]}}}"
-default_context_window="${CCX_CONTEXT_WINDOW:-${config_context_window:-272000}}"
 
 print_models() {
   cat <<'EOF'
@@ -63,8 +74,9 @@ Environment:
   CCX_BG_MODEL           Model for ccx bg (default: sol)
   CCX_BG_EFFORT          Root effort for ccx bg (default: medium)
   CCX_SMALL_FAST_MODEL   Utility/background-request model
-  CCX_CONTEXT_WINDOW     Auto-compaction boundary (default: 272000)
+  CCX_CONTEXT_WINDOW     Auto-compaction boundary (default: per model; 272000, spark 128000)
   CCX_PROXY_URL          Local proxy URL (default: http://127.0.0.1:18765)
+  CCX_SHIM_URL           Optional retry-shim URL fronting the proxy (see scripts/ccx-retry-shim.py)
   CCX_REAL_CLAUDE        Claude Code executable
 EOF
 }
@@ -77,8 +89,9 @@ Main effort: ${CCX_MAIN_EFFORT:-${config_main_effort:-xhigh}}
 Background model: ${CCX_BG_MODEL:-${config_bg_model:-sol}}
 Background effort: ${CCX_BG_EFFORT:-${CCX_BACKGROUND_EFFORT:-${config_bg_effort:-medium}}}
 Utility model: $background_model
-Context window: $default_context_window
+Context window: ${CCX_CONTEXT_WINDOW:-${config_context_window:-per-model default (272000; spark 128000)}}
 Proxy URL: $proxy_url
+Retry shim URL: ${shim_url:-not configured}
 EOF
 }
 
@@ -93,6 +106,10 @@ validate_effort() {
 }
 
 resolve_model() {
+  # Per-model auto-compaction boundary. Most lanes are 272k-class; spark is a
+  # 128k model, and advertising 272k to Claude Code makes long sessions hit
+  # upstream context-length errors instead of compacting.
+  model_context_window='272000'
   case "$1" in
     sol|gpt-5.6-sol|'gpt-5.6-sol[1m]')
       selected_model='gpt-5.6-sol[1m]'
@@ -129,6 +146,7 @@ resolve_model() {
     spark|5.3-spark|gpt-5.3-codex-spark)
       selected_model='gpt-5.3-codex-spark'
       model_name='GPT-5.3 Codex Spark'
+      model_context_window='128000'
       ;;
     5.2|gpt-5.2|'gpt-5.2[1m]')
       selected_model='gpt-5.2[1m]'
@@ -171,10 +189,18 @@ case "${1:-}" in
     requested_model="$1"
     shift
     ;;
+  gpt-*|*'[1m]'*)
+    # A bare full model ID used to fall through silently: the default model
+    # ran and the token was passed to claude as a stray argument. Route it
+    # through resolve_model so it either selects the model or errors loudly.
+    requested_model="$1"
+    shift
+    ;;
 esac
 
 validate_effort "$selected_effort"
 resolve_model "$requested_model"
+context_window="${CCX_CONTEXT_WINDOW:-${config_context_window:-$model_context_window}}"
 
 claude_bin="${CCX_REAL_CLAUDE:-}"
 if [[ -z "$claude_bin" ]]; then
@@ -209,22 +235,54 @@ start_proxy() {
   return 1
 }
 
-if [[ "${CCX_SKIP_HEALTH_CHECK:-0}" != '1' ]] && ! health_check; then
-  if ! start_proxy; then
-    printf 'ccx: proxy did not become healthy at %s/healthz\n' "$proxy_url" >&2
-    printf 'ccx: run ./scripts/doctor.sh from the Claudex repository for diagnostics.\n' >&2
-    exit 1
+if [[ "${CCX_SKIP_HEALTH_CHECK:-0}" != '1' ]]; then
+  if ! health_check; then
+    if ! start_proxy; then
+      printf 'ccx: proxy did not become healthy at %s/healthz\n' "$proxy_url" >&2
+      printf 'ccx: run ./scripts/doctor.sh from the Claudex repository for diagnostics.\n' >&2
+      exit 1
+    fi
+  fi
+
+  # Auth gate: healthz only proves the HTTP server is alive, not that the
+  # Codex OAuth token works. A dead token turns every request into a 401.
+  if command -v claude-code-proxy >/dev/null 2>&1; then
+    if ! auth_status="$(claude-code-proxy codex auth status 2>&1)"; then
+      printf 'ccx: Codex authentication is broken:\n%s\n' "$auth_status" >&2
+      printf 'ccx: run: claude-code-proxy codex auth login\n' >&2
+      exit 1
+    fi
+    case "$auth_status" in
+      *[Ee]xpired*)
+        printf 'ccx: Codex token is expired; run: claude-code-proxy codex auth login\n' >&2
+        exit 1
+        ;;
+    esac
   fi
 fi
 
-export ANTHROPIC_BASE_URL="$proxy_url"
+# Prefer a retry shim when one is configured (CCX_SHIM_URL): it transparently
+# retries transient 401/5xx responses from the proxy (token-refresh races
+# under parallel load) that would otherwise kill subagents and workflows.
+# See scripts/ccx-retry-shim.py.
+base_url="$proxy_url"
+if [[ -n "$shim_url" ]]; then
+  if [[ "${CCX_SKIP_HEALTH_CHECK:-0}" == '1' ]] || \
+     curl --silent --fail --max-time 2 "$shim_url/healthz" >/dev/null 2>&1; then
+    base_url="$shim_url"
+  else
+    printf 'ccx: warning: retry shim %s is unavailable; using the proxy directly\n' "$shim_url" >&2
+  fi
+fi
+
+export ANTHROPIC_BASE_URL="$base_url"
 export ANTHROPIC_AUTH_TOKEN='unused'
 export ANTHROPIC_MODEL="$selected_model"
 export ANTHROPIC_DEFAULT_HAIKU_MODEL="$background_model"
 export ANTHROPIC_SMALL_FAST_MODEL="$background_model"
 export ANTHROPIC_CUSTOM_MODEL_OPTION="$selected_model"
 export ANTHROPIC_CUSTOM_MODEL_OPTION_NAME="$model_name (OpenAI subscription)"
-export CLAUDE_CODE_AUTO_COMPACT_WINDOW="$default_context_window"
+export CLAUDE_CODE_AUTO_COMPACT_WINDOW="$context_window"
 export CLAUDE_CODE_ALWAYS_ENABLE_EFFORT="${CLAUDE_CODE_ALWAYS_ENABLE_EFFORT:-1}"
 export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC='1'
 export CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK='1'

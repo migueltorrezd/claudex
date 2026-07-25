@@ -74,8 +74,13 @@ if ! claude-code-proxy codex auth status >/dev/null 2>&1; then
 fi
 
 if [[ "$skip_service" -eq 0 ]]; then
-  brew services start claude-code-proxy >/dev/null 2>&1 || \
-    brew services start raine/claude-code-proxy/claude-code-proxy >/dev/null
+  # A failed service start must not abort the install: the launcher and
+  # config below are still needed, and bin/ccx starts the proxy on demand.
+  if ! brew services start claude-code-proxy >/dev/null 2>&1 && \
+     ! brew services start raine/claude-code-proxy/claude-code-proxy >/dev/null 2>&1; then
+    printf 'install: warning: could not start the proxy via brew services.\n' >&2
+    printf 'install: continuing; ccx starts the proxy on demand, or rerun with --no-service.\n' >&2
+  fi
 fi
 
 mkdir -p "$config_dir"
@@ -98,7 +103,8 @@ install -m 0755 "$repo_root/bin/ccx" "$launcher_target"
 if [[ "$with_agent" -eq 1 ]]; then
   subagent_effort="${CCX_SUBAGENT_EFFORT:-}"
   if [[ -z "$subagent_effort" && -f "$config_target" ]]; then
-    while IFS='=' read -r config_key config_value; do
+    # `|| [[ -n ... ]]` keeps the final line even without a trailing newline.
+    while IFS='=' read -r config_key config_value || [[ -n "$config_key" ]]; do
       if [[ "$config_key" == 'CCX_SUBAGENT_EFFORT' ]]; then
         subagent_effort="${config_value%$'\r'}"
       fi
