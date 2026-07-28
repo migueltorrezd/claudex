@@ -35,7 +35,7 @@ flowchart LR
 - A ChatGPT plan with Codex access. Model availability varies by account and can change.
 - Git for cloning this repository.
 
-The upstream proxy also publishes Windows binaries, but this repository's service installer is currently tested only with Homebrew on macOS and Linux. Follow the [upstream Windows instructions](https://github.com/raine/claude-code-proxy#quick-start) and install `bin/ccx` manually if you want to adapt it.
+For Windows PowerShell 5.1 installation, see the [Windows guide](docs/windows.md).
 
 ## Five-minute setup
 
@@ -45,6 +45,16 @@ cd claudex
 ./scripts/setup.sh
 ```
 
+On Windows PowerShell 5.1:
+
+```powershell
+git clone https://github.com/migueltorrezd/claudex.git
+Set-Location .\claudex
+.\scripts\setup.ps1
+```
+
+See the [Windows guide](docs/windows.md) for requirements, PATH, and logon-service details.
+
 The wizard asks you to choose:
 
 1. The main model and its reasoning effort.
@@ -53,7 +63,7 @@ The wizard asks you to choose:
 4. The optional custom sub-agent's effort.
 5. Whether to install that agent, complete OAuth, and start the background service.
 
-Every question shows the recommended/current value. Before writing anything, the wizard displays a complete summary and asks for confirmation. Preferences are saved to `~/.config/claudex/config`; an existing config is backed up before it changes. OAuth credentials are never stored there.
+Every question shows the recommended/current value. Before writing anything, the wizard displays a complete summary and asks for confirmation. Preferences are saved to `~/.config/claudex/config` (on Windows, `%APPDATA%\Claudex\config` by default, following the precedence `CCX_CONFIG_FILE` -> `CCX_CONFIG_DIR\config` -> `XDG_CONFIG_HOME\claudex\config` -> `%APPDATA%\Claudex\config`); an existing config is backed up before it changes. OAuth credentials are never stored there.
 
 The tested defaults are:
 
@@ -69,11 +79,20 @@ claude-code-proxy codex auth login
 ./scripts/setup.sh
 ```
 
+On Windows PowerShell 5.1:
+
+```powershell
+claude-code-proxy codex auth login
+.\scripts\setup.ps1
+```
+
 The first command opens the official browser OAuth flow. On a headless machine, use:
 
 ```bash
 claude-code-proxy codex auth device
 ```
+
+(Windows: the same `claude-code-proxy codex auth device` command works from PowerShell.)
 
 Then make sure `~/.local/bin` is on your `PATH`:
 
@@ -83,6 +102,8 @@ export PATH="$HOME/.local/bin:$PATH"
 
 Add that line to `~/.zshrc` or `~/.bashrc` if necessary.
 
+On Windows, the installer can add its per-user launcher directory (`CCX_INSTALL_DIR`, default `%LOCALAPPDATA%\Claudex\bin`) to your **User** `PATH` automatically; see the [Windows guide](docs/windows.md#path-and-service-behavior) if you need to add it manually.
+
 For non-default locations, set `CCX_INSTALL_DIR`, `CCX_AGENT_DIR`, or `CCX_CONFIG_DIR`.
 
 For automation or an AI agent, keep the deterministic installer:
@@ -91,12 +112,27 @@ For automation or an AI agent, keep the deterministic installer:
 ./scripts/install.sh --with-agent
 ```
 
-The wizard also accepts explicit non-interactive flags. Run `./scripts/setup.sh --help` for the full list.
+On Windows PowerShell 5.1:
+
+```powershell
+.\scripts\install.ps1 -WithAgent
+```
+
+The wizard also accepts explicit non-interactive flags. Run `./scripts/setup.sh --help` for the full list (on Windows, `Get-Help .\scripts\setup.ps1 -Detailed`).
 
 Verify the complete installation:
 
 ```bash
 ./scripts/doctor.sh
+ccx models
+ccx config
+ccx
+```
+
+On Windows PowerShell 5.1:
+
+```powershell
+.\scripts\doctor.ps1
 ccx models
 ccx config
 ccx
@@ -114,6 +150,9 @@ and install it. Do not read, print, copy, or commit OAuth credentials. If Codex
 OAuth needs browser approval, stop and ask me to complete it. Run the doctor
 script afterward and report the final model, effort, auth, service, and health state.
 ```
+
+> [!NOTE]
+> The `CLAUDE.md`/`AGENTS.md` agent-installation protocol above currently assumes macOS or Linux (it asks the agent to confirm the OS and run `.sh` scripts). On Windows, follow the manual [Windows guide](docs/windows.md) and `.\scripts\setup.ps1` path instead until the maintainer updates that protocol for PowerShell.
 
 ## Usage
 
@@ -207,13 +246,13 @@ Two failure modes matter in practice, and the launcher now defends against both.
 
 **Transient 401s under parallel load.** During token refresh the proxy can briefly answer some requests with `401 Authentication failed` while others succeed. Claude Code treats 401 as terminal for a subagent, so a single flapped request kills an entire agent, and fan-out workloads (sub-agents, workflows) lose their whole fleet to a flap that an interactive user would not even notice. `scripts/ccx-retry-shim.py` is a small stdlib-only proxy that sits in front of `claude-code-proxy` and transparently retries 401/502/503/529 responses with backoff before the client ever sees them.
 
-To use the shim, run it as a service listening on a free local port (default `18767`) and set `CCX_SHIM_URL` in `~/.config/claudex/config`:
+To use the shim, run it as a service listening on a free local port (default `18767`) and set `CCX_SHIM_URL` in `~/.config/claudex/config` (on Windows, `%APPDATA%\Claudex\config` by default):
 
 ```
 CCX_SHIM_URL=http://127.0.0.1:18767
 ```
 
-On macOS a minimal launchd agent works well (`RunAtLoad` + `KeepAlive`, `ProgramArguments = [/usr/bin/python3, /path/to/ccx-retry-shim.py]`); on Linux use a systemd user unit. The launcher health-checks the shim and falls back to the proxy directly, with a warning, when the shim is down. `/healthz` requests pass through the shim, so one check validates the whole chain.
+On macOS a minimal launchd agent works well (`RunAtLoad` + `KeepAlive`, `ProgramArguments = [/usr/bin/python3, /path/to/ccx-retry-shim.py]`); on Linux use a systemd user unit. On Windows, a per-user Scheduled Task running at logon works the same way `scripts/install.ps1` registers one for the proxy itself (see [Windows guide](docs/windows.md#path-and-service-behavior) for the `Register-ScheduledTask` pattern); point its action at whatever interpreter runs `scripts/ccx-retry-shim.py` on your machine. The launcher health-checks the shim and falls back to the proxy directly, with a warning, when the shim is down. `/healthz` requests pass through the shim, so one check validates the whole chain.
 
 ## Models
 
