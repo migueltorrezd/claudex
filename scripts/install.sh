@@ -2,6 +2,8 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/version.sh
+source "$repo_root/scripts/version.sh"
 install_dir="${CCX_INSTALL_DIR:-$HOME/.local/bin}"
 launcher_target="$install_dir/ccx"
 agent_dir="${CCX_AGENT_DIR:-$HOME/.claude/agents}"
@@ -56,10 +58,26 @@ if ! command -v claude >/dev/null 2>&1; then
   printf 'install: Claude Code is missing. Install it from https://code.claude.com/docs/en/setup\n' >&2
   exit 1
 fi
+claude_version="$(claude --version 2>/dev/null | awk 'NR == 1 {print $1}')"
+if ! version_at_least "$claude_version" "$CCX_MINIMUM_CLAUDE_VERSION"; then
+  printf 'install: Claude Code %s or newer is required; found %s.\n' \
+    "$CCX_MINIMUM_CLAUDE_VERSION" \
+    "${claude_version:-unknown}" >&2
+  printf 'install: run: claude update\n' >&2
+  exit 1
+fi
 
 if ! command -v claude-code-proxy >/dev/null 2>&1; then
   printf 'Installing raine/claude-code-proxy with Homebrew...\n'
   brew install raine/claude-code-proxy/claude-code-proxy
+fi
+proxy_version="$(claude-code-proxy --version 2>/dev/null | awk 'NR == 1 {print $NF}')"
+if ! version_at_least "$proxy_version" "$CCX_MINIMUM_PROXY_VERSION"; then
+  printf 'install: claude-code-proxy %s or newer is required; found %s.\n' \
+    "$CCX_MINIMUM_PROXY_VERSION" \
+    "${proxy_version:-unknown}" >&2
+  printf 'install: run: brew upgrade raine/claude-code-proxy/claude-code-proxy\n' >&2
+  exit 1
 fi
 
 if ! claude-code-proxy codex auth status >/dev/null 2>&1; then
@@ -73,6 +91,42 @@ if ! claude-code-proxy codex auth status >/dev/null 2>&1; then
   fi
 fi
 
+mkdir -p "$config_dir"
+if [[ ! -e "$config_target" ]]; then
+  install -m 0644 "$config_source" "$config_target"
+else
+  printf 'Preserving existing config: %s\n' "$config_target"
+fi
+
+proxy_transport="${CCX_PROXY_TRANSPORT:-}"
+if [[ -z "$proxy_transport" ]]; then
+  while IFS='=' read -r config_key config_value || [[ -n "$config_key" ]]; do
+    if [[ "$config_key" == 'CCX_PROXY_TRANSPORT' ]]; then
+      proxy_transport="${config_value%$'\r'}"
+    fi
+  done < "$config_target"
+fi
+proxy_transport="${proxy_transport:-http}"
+case "$proxy_transport" in
+  http|websocket|auto) ;;
+  *)
+    printf 'install: CCX_PROXY_TRANSPORT must be http, websocket, or auto: %s\n' "$proxy_transport" >&2
+    exit 2
+    ;;
+esac
+
+if [[ -n "${CCP_CONFIG_DIR:-}" ]]; then
+  proxy_config_dir="$CCP_CONFIG_DIR"
+elif [[ "$(uname -s)" == 'Darwin' ]]; then
+  proxy_config_dir="$HOME/.config/claude-code-proxy"
+else
+  proxy_config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/claude-code-proxy"
+fi
+proxy_config_path="$proxy_config_dir/config.json"
+brew ruby "$repo_root/scripts/configure-proxy-transport.rb" \
+  "$proxy_config_path" \
+  "$proxy_transport"
+
 if [[ "$skip_service" -eq 0 ]]; then
   # A failed service start must not abort the install: the launcher and
   # config below are still needed, and bin/ccx starts the proxy on demand.
@@ -81,13 +135,6 @@ if [[ "$skip_service" -eq 0 ]]; then
     printf 'install: warning: could not start the proxy via brew services.\n' >&2
     printf 'install: continuing; ccx starts the proxy on demand, or rerun with --no-service.\n' >&2
   fi
-fi
-
-mkdir -p "$config_dir"
-if [[ ! -e "$config_target" ]]; then
-  install -m 0644 "$config_source" "$config_target"
-else
-  printf 'Preserving existing config: %s\n' "$config_target"
 fi
 
 mkdir -p "$install_dir"

@@ -2,11 +2,11 @@
 
 ## Localhost only
 
-`claude-code-proxy` does not authenticate incoming clients. Claudex therefore defaults to `http://127.0.0.1:18765` and never changes the proxy bind address.
+`claude-code-proxy` does not authenticate incoming clients. Claudex therefore defaults to `http://127.0.0.1:18765` and never changes the proxy bind address. The optional retry shim follows the same rule and binds only to `127.0.0.1:18767`.
 
 The loopback bind is not a complete boundary: every process and every local user account on the machine can reach `127.0.0.1:18765` and spend your subscription quota through it, without any credential. On a single-user machine this adds little beyond what local code can already do with your files, but on shared machines treat the proxy as an open spigot for anyone with local access.
 
-Do not expose port `18765` to a LAN, VPN, container bridge, tunnel, or the public internet unless you add a firewall and an authenticating reverse proxy you understand and control.
+Do not expose port `18765` or `18767` to a LAN, VPN, container bridge, tunnel, or the public internet unless you add a firewall and an authenticating reverse proxy you understand and control.
 
 ## Credentials
 

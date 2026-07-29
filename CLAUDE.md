@@ -8,9 +8,9 @@ Your task in this repository is to install and verify Claudex without exposing c
 4. Apply explicit choices with `./scripts/setup.sh --yes` and the corresponding flags. For the tested defaults, the deterministic `./scripts/install.sh --with-agent` remains valid.
 5. If `claude-code-proxy codex auth status` is not healthy, stop and ask the user to complete `claude-code-proxy codex auth login` in an interactive terminal. Never read, print, copy, summarize, or commit OAuth credentials or token files.
 6. Rerun the selected setup command, then run `./scripts/doctor.sh`.
-7. Run `bash tests/test-ccx.sh` and `bash tests/test-setup.sh`. These tests use stubs and do not make a model request.
+7. Run `bash tests/test-ccx.sh`, `bash tests/test-setup.sh`, `bash tests/test-install.sh`, `bash tests/test-version.sh`, and `PYTHONDONTWRITEBYTECODE=1 python3 tests/test-retry-shim.py`. These tests use stubs and local sockets; they do not make a model request.
 8. Do not run a live model smoke test without the user's permission because it consumes subscription quota.
-9. Report the installed proxy version, OAuth status, service state, health endpoint, launcher path, config path, selected models, selected efforts, and custom-agent state. Do not report account IDs or tokens.
+9. Report the installed proxy version, Codex transport, OAuth status, service state, health endpoint, launcher path, config path, selected models, selected efforts, and custom-agent state. Do not report account IDs or tokens.
 
 Safety constraints:
 

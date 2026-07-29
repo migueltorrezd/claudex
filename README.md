@@ -16,6 +16,8 @@ Claudex is a small, opinionated setup layer around [Claude Code](https://code.cl
 - An optional custom background sub-agent configured at high effort.
 - An interactive wizard that asks which models and effort levels you want.
 - Proxy health checks and automatic Homebrew service recovery.
+- Bounded sub-agent fan-out, request retries, and request timeouts by default.
+- A `ccx solo` escape hatch that disables the Agent tool for one session.
 - No API key in the repository. Authentication is handled by the proxy's Codex OAuth flow.
 
 ```mermaid
@@ -30,8 +32,9 @@ flowchart LR
 ## Requirements
 
 - macOS or Linux for the automated Homebrew setup. The launcher itself is Bash.
-- [Claude Code](https://code.claude.com/docs/en/setup) installed.
+- [Claude Code](https://code.claude.com/docs/en/setup) 2.1.217 or newer. That is the first release supporting all three configurable sub-agent limits.
 - [Homebrew](https://brew.sh/) installed.
+- [`claude-code-proxy`](https://github.com/raine/claude-code-proxy) 0.1.17 or newer. The installer adds it when missing.
 - A ChatGPT plan with Codex access. Model availability varies by account and can change.
 - Git for cloning this repository.
 
@@ -61,6 +64,9 @@ The tested defaults are:
 - Background lane: GPT-5.6 Sol at `medium` effort.
 - Utility requests: GPT-5.6 Sol.
 - Custom sub-agent: `high` effort.
+- Proxy Codex transport: `http` for reliable large workflow fan-out.
+- Sub-agent safety: at most 3 concurrent, 12 total per session, and one spawn level.
+- Request safety: at most 3 Claude Code retries and a 5-minute request deadline.
 
 If Codex OAuth is not configured yet and you decline browser login in the wizard, run:
 
@@ -121,7 +127,9 @@ script afterward and report the final model, effort, auth, service, and health s
 ccx                         # GPT-5.6 Sol, xhigh root-session effort
 ccx bg                      # GPT-5.6 Sol, medium root-session effort
 ccx bg --bg "Refactor it"  # launch that lane as a real Claude background agent
+ccx solo -p "Review this"   # run with the Agent tool disabled
 ccx terra                   # GPT-5.6 Terra
+ccx terra-fast              # GPT-5.6 Terra, priority service tier
 ccx luna                    # GPT-5.6 Luna
 ccx 5.5                     # GPT-5.5
 ccx 5.4                     # GPT-5.4
@@ -154,6 +162,14 @@ The launcher supports these environment overrides:
 | `CCX_SMALL_FAST_MODEL` | `gpt-5.6-sol[1m]` | Claude utility/background-request model |
 | `CCX_CONTEXT_WINDOW` | `272000` | Auto-compaction boundary |
 | `CCX_PROXY_URL` | `http://127.0.0.1:18765` | Local proxy URL |
+| `CCX_PROXY_TRANSPORT` | `http` | Proxy-to-Codex transport: `http`, `websocket`, or `auto` |
+| `CCX_SHIM_URL` | unset | Optional bounded retry-shim URL |
+| `CCX_SUBAGENT_GUARDS` | `1` | Apply the limits below; set `0` to opt out |
+| `CCX_MAX_CONCURRENT_SUBAGENTS` | `3` | Maximum simultaneously active sub-agents |
+| `CCX_MAX_SUBAGENTS_PER_SESSION` | `12` | Maximum sub-agents spawned in one session |
+| `CCX_MAX_SUBAGENT_SPAWN_DEPTH` | `1` | Allow root delegation but prevent recursive fan-out |
+| `CCX_MAX_RETRIES` | `3` | Claude Code request-retry ceiling |
+| `CCX_API_TIMEOUT_MS` | `300000` | Claude Code per-request deadline in milliseconds |
 | `CCX_REAL_CLAUDE` | first `claude` on `PATH` | Claude Code executable |
 
 Example:
@@ -166,11 +182,12 @@ Environment variables and explicit command-line arguments override the saved con
 
 ## Effort and sub-agents
 
-These are three separate controls:
+These are separate controls:
 
 1. The root Claudex session uses `xhigh` by default.
 2. The `ccx bg` root session uses `medium` by default.
 3. Custom sub-agent definitions can set `effort: high` in their YAML frontmatter.
+4. Every normal lane applies hard fan-out and request bounds before Claude Code starts.
 
 Install the included example with `./scripts/install.sh --with-agent`, or copy [`examples/agents/claudex-worker.md`](examples/agents/claudex-worker.md) into `~/.claude/agents/`.
 
@@ -179,6 +196,31 @@ The setup wizard can select a different effort for this custom agent and safely 
 The launcher intentionally uses Claude Code's `--effort` session option instead of `CLAUDE_CODE_EFFORT_LEVEL`. The environment variable has higher precedence and would prevent a custom agent's `effort: high` frontmatter from overriding its parent session.
 
 There is no `CLAUDE_CODE_SUBAGENT_EFFORT` variable. Built-in agents inherit the parent session's effort; editable custom agents can declare their own effort. The repository also does not force `CLAUDE_CODE_SUBAGENT_MODEL`, because that would override every agent's own model selection.
+
+The default limits are intentionally conservative: three active sub-agents, twelve spawned across the session, and one delegation level. They prevent an audit or review prompt from recursively multiplying workers while preserving useful parallel work. Direct `CLAUDE_CODE_MAX_*` environment variables still take precedence when you deliberately need different limits. Claude Code exempts `ultracode` sessions from its concurrency cap, but the session-total and nesting limits still apply.
+
+If a task should never delegate, use `ccx solo` (also available as `ccx no-agents`). It passes Claude Code's `--disallowedTools Agent` option for that session. This is also the quickest recovery lane after stopping a runaway session.
+
+These limits govern sub-agents spawned through Claude Code's Agent tool. Dynamic workflows and agent teams have their own limits upstream; they are not silently presented here as protected by the same caps.
+
+## Dynamic workflow scale
+
+Claude Code dynamic workflows can schedule dozens or hundreds of agents, but the runtime executes at most 16 at once. “100 agents in one section” therefore means a 100-item queue feeding a 16-agent execution pool, not 100 simultaneous model requests.
+
+On July 29, 2026, Claudex stress-tested one workflow phase that scheduled 100 Sol/high agents together on an 18-core, 48 GB Mac:
+
+| Proxy transport | Runs | Valid agents | Agent failures | Measured peak active |
+|---|---:|---:|---:|---:|
+| Upstream default `websocket` | 1 | 80/100 | 20 transient WebSocket upgrade 403s | 16 |
+| Claudex default `http` | 3 | 300/300 | 0 | 16 |
+
+The verified maximum within the tested 1–100 range is therefore **100 scheduled agents in one phase, HTTP transport, 16 active at once**. Two one-turn HTTP runs took 34.3 and 32.2 seconds inside the workflow and used about 1.34 million agent tokens each. A third sustained run made every agent perform a real `Read` plus structured return: all 100 completed their two tool calls, used 1.41 million tokens, and finished in 62.5 seconds. Treat that as a measured ceiling for this machine and account, not a universal service guarantee.
+
+For a generated workflow to aim above the normal medium guideline, choose `unrestricted` under **Dynamic workflow size** in `/config`, or add `"workflowSizeGuideline": "unrestricted"` to the relevant Claude Code settings file. This is planning advice, not a runtime cap. Claude Code still enforces 16 concurrent and 1,000 total agents per run.
+
+Keep scaling in the workflow script: fan out a phase with `pipeline()`, collect its results, then start the next phase. Do not make workflow agents recursively spawn more agents; nested delegation was not reliable in this test environment and obscures the runtime’s queue.
+
+`scripts/setup.sh` records `CCX_PROXY_TRANSPORT=http`, and the installer safely merges `codex.transport` into the upstream proxy’s `config.json` without discarding unrelated fields. A proxy restart is required before a changed transport takes effect.
 
 ## Why this is more than an alias
 
@@ -189,6 +231,7 @@ An alias that only runs `claude --model gpt-5.6-sol` does not create the connect
 - `ANTHROPIC_BASE_URL` and a local dummy auth value;
 - a concrete model for Claude Code's small/background requests;
 - a correct compaction boundary;
+- hard limits on sub-agent fan-out and request duration;
 - protection from non-streaming retries that can duplicate tool calls.
 
 The launcher handles those pieces while leaving native Claude Code untouched.
@@ -199,13 +242,21 @@ It deliberately does **not** set:
 - `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY=3`, because that is a throttle, not a quality improvement;
 - `CLAUDE_CODE_SUBAGENT_MODEL`, because it overrides per-agent model choices.
 
-## Reliability: auth gate and retry shim
+## Reliability: fan-out guards, timeouts, and retry shim
 
-Two failure modes matter in practice, and the launcher now defends against both.
+Four failure modes matter in practice, and the launcher now defends against all four.
+
+**Recursive or excessive agent fan-out.** A broad prompt can trigger several sub-agents at once, and current Claude Code builds allow nested delegation by default. Claudex caps concurrency, total spawns, and nesting. The caps are enforced by Claude Code itself, while `ccx solo` removes the Agent tool entirely when delegation is inappropriate.
+
+**Requests that never settle.** Claude Code's default request timeout and retry count are generous enough that a disconnected fleet can appear to spin for a long time. Claudex lowers them to a five-minute per-request deadline and three retries. The optional shim separately bounds connection, response-header, streaming-idle, write, and queue waits; closes upstream work when the client disconnects; and accepts at most eight simultaneous connections by default.
 
 **Dead token at launch.** The proxy's `/healthz` endpoint only proves the HTTP server is up; it says nothing about the Codex OAuth token. Before handing off to Claude Code, `ccx` runs `claude-code-proxy codex auth status` and refuses to start a session that would only produce 401 errors, telling you to run `claude-code-proxy codex auth login` instead.
 
-**Transient 401s under parallel load.** During token refresh the proxy can briefly answer some requests with `401 Authentication failed` while others succeed. Claude Code treats 401 as terminal for a subagent, so a single flapped request kills an entire agent, and fan-out workloads (sub-agents, workflows) lose their whole fleet to a flap that an interactive user would not even notice. `scripts/ccx-retry-shim.py` is a small stdlib-only proxy that sits in front of `claude-code-proxy` and transparently retries 401/502/503/529 responses with backoff before the client ever sees them.
+**Transient 401s under parallel load.** During token refresh the proxy can briefly answer some requests with `401 Authentication failed` while others succeed. Claude Code treats 401 as terminal for a subagent, so a single flapped request can kill that worker. `scripts/ccx-retry-shim.py` is a small standard-library-only proxy that sits in front of `claude-code-proxy` and retries an explicit 401 exactly once by default.
+
+**WebSocket upgrade saturation during very large workflow bursts.** The upstream WebSocket default produced 20 terminal 403 upgrade failures in a 100-agent phase even though OAuth remained healthy. HTTP transport completed the same maximum-size workload twice without a failure, so Claudex persists `codex.transport=http` in the proxy configuration.
+
+The shim deliberately does not retry 5xx or transport failures by default because Claude Code already retries them. Retrying at both layers multiplies traffic precisely when a worker fleet is unhealthy. Advanced users can change the shim's retry statuses and limits through its documented `CCX_SHIM_*` environment variables.
 
 To use the shim, run it as a service listening on a free local port (default `18767`) and set `CCX_SHIM_URL` in `~/.config/claudex/config`:
 
@@ -214,6 +265,8 @@ CCX_SHIM_URL=http://127.0.0.1:18767
 ```
 
 On macOS a minimal launchd agent works well (`RunAtLoad` + `KeepAlive`, `ProgramArguments = [/usr/bin/python3, /path/to/ccx-retry-shim.py]`); on Linux use a systemd user unit. The launcher health-checks the shim and falls back to the proxy directly, with a warning, when the shim is down. `/healthz` requests pass through the shim, so one check validates the whole chain.
+
+The shim is optional. The sub-agent caps, Claude Code retry limit, and request timeout work without it.
 
 ## Models
 
@@ -229,9 +282,25 @@ At the time of writing, the upstream proxy recognizes these Codex model IDs:
 - `gpt-5.3-codex-spark`
 - `gpt-5.2`
 
+Each lane also has the upstream `-fast` priority-service variant, exposed as aliases such as `sol-fast`, `terra-fast`, `mini-fast`, and `spark-fast`.
+
 Recognition by the proxy does not guarantee access on your ChatGPT account. Unsupported account/model combinations are returned by the upstream service as an error. Treat the [upstream model list](https://github.com/raine/claude-code-proxy#4-point-claude-code-at-it) as canonical because this list will age.
 
 The `[1m]` suffix used by the launcher is a local Claude Code compaction hint. The proxy strips it before the upstream request. It does not magically increase your account's real context limit.
+
+## Tests
+
+The suite is deterministic and uses a stub Claude executable plus local sockets. It never reads OAuth credentials or makes a model request.
+
+```bash
+bash tests/test-ccx.sh
+bash tests/test-setup.sh
+bash tests/test-install.sh
+bash tests/test-version.sh
+PYTHONDONTWRITEBYTECODE=1 python3 tests/test-retry-shim.py
+```
+
+The retry-shim tests reproduce the relevant failure shapes: bounded 401 recovery, no duplicate 5xx retry layer, stalled headers, stalled streams, client cancellation, and connection saturation. CI runs the suite on both Linux and macOS.
 
 ## Updating and uninstalling
 

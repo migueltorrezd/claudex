@@ -25,7 +25,7 @@ Without options, setup.sh opens an interactive questionnaire.
 
 Options:
   --main-model MODEL          Root model alias
-  --main-effort EFFORT       Root effort: low, medium, high, xhigh, or max
+  --main-effort EFFORT       Root effort: low, medium, high, xhigh, max, or ultracode
   --bg-model MODEL            Model used by the ccx bg lane
   --bg-effort EFFORT         Effort used by the ccx bg lane
   --utility-model MODEL       Model for titles, token counts, and utility requests
@@ -41,7 +41,9 @@ Options:
   -h, --help                 Show this help
 
 Model aliases:
-  sol, sol-fast, terra, luna, 5.5, 5.4, mini, 5.3, spark, 5.2
+  sol, sol-fast, terra, terra-fast, luna, luna-fast, 5.5, 5.5-fast,
+  5.4, 5.4-fast, mini, mini-fast, 5.3, 5.3-fast, spark, spark-fast,
+  5.2, 5.2-fast
 EOF
 }
 
@@ -102,18 +104,47 @@ read_config_value CCX_SMALL_FAST_MODEL 'gpt-5.6-sol[1m]'
 default_utility_wire="$CONFIG_VALUE"
 read_config_value CCX_SUBAGENT_EFFORT high
 default_subagent_effort="$CONFIG_VALUE"
+read_config_value CCX_CONTEXT_WINDOW ''
+preserved_context_window="$CONFIG_VALUE"
+read_config_value CCX_PROXY_URL 'http://127.0.0.1:18765'
+preserved_proxy_url="$CONFIG_VALUE"
+read_config_value CCX_PROXY_TRANSPORT http
+preserved_proxy_transport="$CONFIG_VALUE"
+read_config_value CCX_SHIM_URL ''
+preserved_shim_url="$CONFIG_VALUE"
+read_config_value CCX_SUBAGENT_GUARDS 1
+preserved_subagent_guards="$CONFIG_VALUE"
+read_config_value CCX_MAX_CONCURRENT_SUBAGENTS 3
+preserved_max_concurrent_subagents="$CONFIG_VALUE"
+read_config_value CCX_MAX_SUBAGENTS_PER_SESSION 12
+preserved_max_subagents_per_session="$CONFIG_VALUE"
+read_config_value CCX_MAX_SUBAGENT_SPAWN_DEPTH 1
+preserved_max_subagent_spawn_depth="$CONFIG_VALUE"
+read_config_value CCX_MAX_RETRIES 3
+preserved_max_retries="$CONFIG_VALUE"
+read_config_value CCX_API_TIMEOUT_MS 300000
+preserved_api_timeout_ms="$CONFIG_VALUE"
 
 utility_alias_from_wire() {
   case "$1" in
     'gpt-5.6-sol[1m]'|gpt-5.6-sol) UTILITY_ALIAS='sol' ;;
+    'gpt-5.6-sol-fast[1m]'|gpt-5.6-sol-fast) UTILITY_ALIAS='sol-fast' ;;
     'gpt-5.6-terra[1m]'|gpt-5.6-terra) UTILITY_ALIAS='terra' ;;
+    'gpt-5.6-terra-fast[1m]'|gpt-5.6-terra-fast) UTILITY_ALIAS='terra-fast' ;;
     'gpt-5.6-luna[1m]'|gpt-5.6-luna) UTILITY_ALIAS='luna' ;;
+    'gpt-5.6-luna-fast[1m]'|gpt-5.6-luna-fast) UTILITY_ALIAS='luna-fast' ;;
     'gpt-5.5[1m]'|gpt-5.5) UTILITY_ALIAS='5.5' ;;
+    'gpt-5.5-fast[1m]'|gpt-5.5-fast) UTILITY_ALIAS='5.5-fast' ;;
     'gpt-5.4[1m]'|gpt-5.4) UTILITY_ALIAS='5.4' ;;
+    'gpt-5.4-fast[1m]'|gpt-5.4-fast) UTILITY_ALIAS='5.4-fast' ;;
     'gpt-5.4-mini[1m]'|gpt-5.4-mini) UTILITY_ALIAS='mini' ;;
+    'gpt-5.4-mini-fast[1m]'|gpt-5.4-mini-fast) UTILITY_ALIAS='mini-fast' ;;
     'gpt-5.3-codex[1m]'|gpt-5.3-codex) UTILITY_ALIAS='5.3' ;;
+    'gpt-5.3-codex-fast[1m]'|gpt-5.3-codex-fast) UTILITY_ALIAS='5.3-fast' ;;
     gpt-5.3-codex-spark) UTILITY_ALIAS='spark' ;;
+    gpt-5.3-codex-spark-fast) UTILITY_ALIAS='spark-fast' ;;
     'gpt-5.2[1m]'|gpt-5.2) UTILITY_ALIAS='5.2' ;;
+    'gpt-5.2-fast[1m]'|gpt-5.2-fast) UTILITY_ALIAS='5.2-fast' ;;
     *) UTILITY_ALIAS='sol' ;;
   esac
 }
@@ -123,13 +154,21 @@ wire_model_from_alias() {
     sol) WIRE_MODEL='gpt-5.6-sol[1m]' ;;
     sol-fast) WIRE_MODEL='gpt-5.6-sol-fast[1m]' ;;
     terra) WIRE_MODEL='gpt-5.6-terra[1m]' ;;
+    terra-fast) WIRE_MODEL='gpt-5.6-terra-fast[1m]' ;;
     luna) WIRE_MODEL='gpt-5.6-luna[1m]' ;;
+    luna-fast) WIRE_MODEL='gpt-5.6-luna-fast[1m]' ;;
     5.5) WIRE_MODEL='gpt-5.5[1m]' ;;
+    5.5-fast) WIRE_MODEL='gpt-5.5-fast[1m]' ;;
     5.4) WIRE_MODEL='gpt-5.4[1m]' ;;
+    5.4-fast) WIRE_MODEL='gpt-5.4-fast[1m]' ;;
     mini) WIRE_MODEL='gpt-5.4-mini[1m]' ;;
+    mini-fast) WIRE_MODEL='gpt-5.4-mini-fast[1m]' ;;
     5.3) WIRE_MODEL='gpt-5.3-codex[1m]' ;;
+    5.3-fast) WIRE_MODEL='gpt-5.3-codex-fast[1m]' ;;
     spark) WIRE_MODEL='gpt-5.3-codex-spark' ;;
+    spark-fast) WIRE_MODEL='gpt-5.3-codex-spark-fast' ;;
     5.2) WIRE_MODEL='gpt-5.2[1m]' ;;
+    5.2-fast) WIRE_MODEL='gpt-5.2-fast[1m]' ;;
     *) return 1 ;;
   esac
 }
@@ -141,15 +180,57 @@ validate_model() {
   }
 }
 
-validate_effort() {
+validate_session_effort() {
   case "$1" in
-    low|medium|high|xhigh|max) ;;
+    low|medium|high|xhigh|max|ultracode) ;;
     *)
-      printf 'setup: unsupported effort: %s\n' "$1" >&2
+      printf 'setup: unsupported session effort: %s\n' "$1" >&2
       exit 2
       ;;
   esac
 }
+
+validate_subagent_effort() {
+  case "$1" in
+    low|medium|high|xhigh|max) ;;
+    *)
+      printf 'setup: unsupported custom sub-agent effort: %s\n' "$1" >&2
+      exit 2
+      ;;
+  esac
+}
+
+validate_positive_integer() {
+  local name="$1"
+  local value="$2"
+  if [[ ! "$value" =~ ^[1-9][0-9]*$ ]]; then
+    printf 'setup: %s must be a positive integer: %s\n' "$name" "$value" >&2
+    exit 2
+  fi
+}
+
+case "$preserved_subagent_guards" in
+  0|1) ;;
+  *)
+    printf 'setup: CCX_SUBAGENT_GUARDS must be 0 or 1: %s\n' "$preserved_subagent_guards" >&2
+    exit 2
+    ;;
+esac
+validate_positive_integer CCX_MAX_CONCURRENT_SUBAGENTS "$preserved_max_concurrent_subagents"
+validate_positive_integer CCX_MAX_SUBAGENTS_PER_SESSION "$preserved_max_subagents_per_session"
+validate_positive_integer CCX_MAX_SUBAGENT_SPAWN_DEPTH "$preserved_max_subagent_spawn_depth"
+validate_positive_integer CCX_MAX_RETRIES "$preserved_max_retries"
+validate_positive_integer CCX_API_TIMEOUT_MS "$preserved_api_timeout_ms"
+case "$preserved_proxy_transport" in
+  http|websocket|auto) ;;
+  *)
+    printf 'setup: CCX_PROXY_TRANSPORT must be http, websocket, or auto: %s\n' "$preserved_proxy_transport" >&2
+    exit 2
+    ;;
+esac
+if [[ -n "$preserved_context_window" ]]; then
+  validate_positive_integer CCX_CONTEXT_WINDOW "$preserved_context_window"
+fi
 
 choose_option() {
   local label="$1"
@@ -222,35 +303,35 @@ printf 'This stores model and effort preferences only. OAuth tokens never enter 
 
 if [[ -z "$main_model" ]]; then
   if [[ "$assume_yes" -eq 1 ]]; then main_model="$default_main_model"; else
-    choose_option '1. Main model for normal ccx sessions' "$default_main_model" sol sol-fast terra luna 5.5 5.4 mini 5.3 spark 5.2
+    choose_option '1. Main model for normal ccx sessions' "$default_main_model" sol sol-fast terra terra-fast luna luna-fast 5.5 5.5-fast 5.4 5.4-fast mini mini-fast 5.3 5.3-fast spark spark-fast 5.2 5.2-fast
     main_model="$CHOICE"
   fi
 fi
 
 if [[ -z "$main_effort" ]]; then
   if [[ "$assume_yes" -eq 1 ]]; then main_effort="$default_main_effort"; else
-    choose_option '2. Main-session reasoning effort' "$default_main_effort" low medium high xhigh max
+    choose_option '2. Main-session reasoning effort' "$default_main_effort" low medium high xhigh max ultracode
     main_effort="$CHOICE"
   fi
 fi
 
 if [[ -z "$bg_model" ]]; then
   if [[ "$assume_yes" -eq 1 ]]; then bg_model="$default_bg_model"; else
-    choose_option '3. Model for the ccx bg lane' "$default_bg_model" sol sol-fast terra luna 5.5 5.4 mini 5.3 spark 5.2
+    choose_option '3. Model for the ccx bg lane' "$default_bg_model" sol sol-fast terra terra-fast luna luna-fast 5.5 5.5-fast 5.4 5.4-fast mini mini-fast 5.3 5.3-fast spark spark-fast 5.2 5.2-fast
     bg_model="$CHOICE"
   fi
 fi
 
 if [[ -z "$bg_effort" ]]; then
   if [[ "$assume_yes" -eq 1 ]]; then bg_effort="$default_bg_effort"; else
-    choose_option '4. Reasoning effort for the ccx bg lane' "$default_bg_effort" low medium high xhigh max
+    choose_option '4. Reasoning effort for the ccx bg lane' "$default_bg_effort" low medium high xhigh max ultracode
     bg_effort="$CHOICE"
   fi
 fi
 
 if [[ -z "$utility_model" ]]; then
   if [[ "$assume_yes" -eq 1 ]]; then utility_model="$default_utility_model"; else
-    choose_option '5. Utility model for titles, token counts, and small background requests' "$default_utility_model" sol terra luna 5.5 5.4 mini 5.3 spark 5.2
+    choose_option '5. Utility model for titles, token counts, and small background requests' "$default_utility_model" sol sol-fast terra terra-fast luna luna-fast 5.5 5.5-fast 5.4 5.4-fast mini mini-fast 5.3 5.3-fast spark spark-fast 5.2 5.2-fast
     utility_model="$CHOICE"
   fi
 fi
@@ -286,9 +367,9 @@ fi
 validate_model "$main_model"
 validate_model "$bg_model"
 validate_model "$utility_model"
-validate_effort "$main_effort"
-validate_effort "$bg_effort"
-validate_effort "$subagent_effort"
+validate_session_effort "$main_effort"
+validate_session_effort "$bg_effort"
+validate_subagent_effort "$subagent_effort"
 wire_model_from_alias "$utility_model"
 utility_wire_model="$WIRE_MODEL"
 
@@ -299,6 +380,17 @@ printf '  Utility requests: %s\n' "$utility_model"
 printf '  Custom sub-agent: %s (effort: %s)\n' "$install_agent" "$subagent_effort"
 printf '  Browser OAuth:    %s, if needed\n' "$run_login"
 printf '  Background service: %s\n' "$start_service"
+printf '  Subagent guards:  %s (concurrent: %s, session: %s, depth: %s)\n' \
+  "$preserved_subagent_guards" \
+  "$preserved_max_concurrent_subagents" \
+  "$preserved_max_subagents_per_session" \
+  "$preserved_max_subagent_spawn_depth"
+printf '  Request bounds:   %s retries, %sms timeout\n' \
+  "$preserved_max_retries" \
+  "$preserved_api_timeout_ms"
+printf '  Proxy URL:        %s\n' "$preserved_proxy_url"
+printf '  Proxy transport:  %s\n' "$preserved_proxy_transport"
+printf '  Retry shim URL:   %s\n' "${preserved_shim_url:-not configured}"
 printf '  Config path:      %s\n' "$config_target"
 
 if [[ "$assume_yes" -eq 0 ]]; then
@@ -321,11 +413,31 @@ CCX_BG_MODEL=$bg_model
 CCX_BG_EFFORT=$bg_effort
 CCX_SMALL_FAST_MODEL=$utility_wire_model
 CCX_SUBAGENT_EFFORT=$subagent_effort
+CCX_SUBAGENT_GUARDS=$preserved_subagent_guards
+CCX_MAX_CONCURRENT_SUBAGENTS=$preserved_max_concurrent_subagents
+CCX_MAX_SUBAGENTS_PER_SESSION=$preserved_max_subagents_per_session
+CCX_MAX_SUBAGENT_SPAWN_DEPTH=$preserved_max_subagent_spawn_depth
+CCX_MAX_RETRIES=$preserved_max_retries
+CCX_API_TIMEOUT_MS=$preserved_api_timeout_ms
+CCX_PROXY_URL=$preserved_proxy_url
+CCX_PROXY_TRANSPORT=$preserved_proxy_transport
+EOF
+if [[ -n "$preserved_context_window" ]]; then
+  printf 'CCX_CONTEXT_WINDOW=%s\n' "$preserved_context_window" >> "$rendered_config"
+else
+  cat >> "$rendered_config" <<'EOF'
 # CCX_CONTEXT_WINDOW is intentionally unset: the launcher picks the correct
 # per-model boundary (272000 for most lanes, 128000 for spark). Set it only
 # to force a specific value for every model.
-CCX_PROXY_URL=http://127.0.0.1:18765
 EOF
+fi
+if [[ -n "$preserved_shim_url" ]]; then
+  printf 'CCX_SHIM_URL=%s\n' "$preserved_shim_url" >> "$rendered_config"
+else
+  cat >> "$rendered_config" <<'EOF'
+# CCX_SHIM_URL is optional. When configured, setup preserves it across updates.
+EOF
+fi
 chmod 0644 "$rendered_config"
 
 if [[ -f "$config_target" ]] && ! cmp -s "$rendered_config" "$config_target"; then

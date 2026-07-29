@@ -8,13 +8,60 @@ permissions:
   contents: read
 
 jobs:
-  shell-tests:
-    runs-on: ubuntu-latest
+  tests:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - name: Check shell syntax
-        run: bash -n bin/ccx scripts/setup.sh scripts/install.sh scripts/doctor.sh tests/stub-claude.sh tests/test-ccx.sh tests/test-setup.sh
+        run: >-
+          bash -n
+          bin/ccx
+          scripts/setup.sh
+          scripts/install.sh
+          scripts/doctor.sh
+          scripts/version.sh
+          tests/stub-claude.sh
+          tests/stub-proxy.sh
+          tests/stub-brew.sh
+          tests/test-ccx.sh
+          tests/test-setup.sh
+          tests/test-install.sh
+          tests/test-version.sh
+      - name: Check Ruby syntax
+        run: ruby -c scripts/configure-proxy-transport.rb
+      - name: Check shell scripts
+        if: runner.os == 'Linux'
+        run: >-
+          shellcheck
+          bin/ccx
+          scripts/setup.sh
+          scripts/install.sh
+          scripts/doctor.sh
+          scripts/version.sh
+          tests/stub-claude.sh
+          tests/stub-proxy.sh
+          tests/stub-brew.sh
+          tests/test-ccx.sh
+          tests/test-setup.sh
+          tests/test-install.sh
+          tests/test-version.sh
       - name: Test launcher behavior
         run: bash tests/test-ccx.sh
       - name: Test setup wizard
         run: bash tests/test-setup.sh
+      - name: Test dependency gates and installer
+        run: bash tests/test-install.sh
+      - name: Test version checks
+        run: bash tests/test-version.sh
+      - name: Test bounded retry shim
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 tests/test-retry-shim.py

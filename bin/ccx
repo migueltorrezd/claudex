@@ -10,7 +10,14 @@ config_bg_effort=''
 config_small_fast_model=''
 config_context_window=''
 config_proxy_url=''
+config_proxy_transport=''
 config_shim_url=''
+config_subagent_guards=''
+config_max_concurrent_subagents=''
+config_max_subagents_per_session=''
+config_max_subagent_spawn_depth=''
+config_max_retries=''
+config_api_timeout_ms=''
 
 trim() {
   local value="$1"
@@ -32,39 +39,63 @@ if [[ -f "$config_file" ]]; then
       CCX_SMALL_FAST_MODEL) config_small_fast_model="$config_value" ;;
       CCX_CONTEXT_WINDOW) config_context_window="$config_value" ;;
       CCX_PROXY_URL) config_proxy_url="$config_value" ;;
+      CCX_PROXY_TRANSPORT) config_proxy_transport="$config_value" ;;
       CCX_SHIM_URL) config_shim_url="$config_value" ;;
+      CCX_SUBAGENT_GUARDS) config_subagent_guards="$config_value" ;;
+      CCX_MAX_CONCURRENT_SUBAGENTS) config_max_concurrent_subagents="$config_value" ;;
+      CCX_MAX_SUBAGENTS_PER_SESSION) config_max_subagents_per_session="$config_value" ;;
+      CCX_MAX_SUBAGENT_SPAWN_DEPTH) config_max_subagent_spawn_depth="$config_value" ;;
+      CCX_MAX_RETRIES) config_max_retries="$config_value" ;;
+      CCX_API_TIMEOUT_MS) config_api_timeout_ms="$config_value" ;;
     esac
   done < "$config_file"
 fi
 
 proxy_url="${CCX_PROXY_URL:-${config_proxy_url:-http://127.0.0.1:18765}}"
+proxy_transport="${CCX_PROXY_TRANSPORT:-${config_proxy_transport:-http}}"
 shim_url="${CCX_SHIM_URL:-${config_shim_url:-}}"
 background_model="${CCX_SMALL_FAST_MODEL:-${CCX_BACKGROUND_MODEL:-${config_small_fast_model:-gpt-5.6-sol[1m]}}}"
+subagent_guards="${CCX_SUBAGENT_GUARDS:-${config_subagent_guards:-1}}"
+max_concurrent_subagents="${CCX_MAX_CONCURRENT_SUBAGENTS:-${config_max_concurrent_subagents:-3}}"
+max_subagents_per_session="${CCX_MAX_SUBAGENTS_PER_SESSION:-${config_max_subagents_per_session:-12}}"
+max_subagent_spawn_depth="${CCX_MAX_SUBAGENT_SPAWN_DEPTH:-${config_max_subagent_spawn_depth:-1}}"
+max_retries="${CCX_MAX_RETRIES:-${config_max_retries:-3}}"
+api_timeout_ms="${CCX_API_TIMEOUT_MS:-${config_api_timeout_ms:-300000}}"
 
 print_models() {
   cat <<'EOF'
-Usage: ccx [model|bg] [claude arguments]
+Usage: ccx [model|bg|solo] [claude arguments]
 
 Models:
   sol       GPT-5.6 Sol (default)
   sol-fast  GPT-5.6 Sol, priority service tier
   terra     GPT-5.6 Terra
+  terra-fast GPT-5.6 Terra, priority service tier
   luna      GPT-5.6 Luna
+  luna-fast GPT-5.6 Luna, priority service tier
   5.5       GPT-5.5
+  5.5-fast  GPT-5.5, priority service tier
   5.4       GPT-5.4
+  5.4-fast  GPT-5.4, priority service tier
   mini      GPT-5.4 Mini
+  mini-fast GPT-5.4 Mini, priority service tier
   5.3       GPT-5.3 Codex
+  5.3-fast  GPT-5.3 Codex, priority service tier
   spark     GPT-5.3 Codex Spark
+  spark-fast GPT-5.3 Codex Spark, priority service tier
   5.2       GPT-5.2
+  5.2-fast  GPT-5.2, priority service tier
 
 Modes:
   bg        Configured background lane (default: GPT-5.6 Sol, medium)
+  solo      Disable the Agent tool for a session with no subagents
 
 Examples:
   ccx
   ccx terra
   ccx bg
   ccx bg --bg "Run tests and fix failures"
+  ccx solo -p "Review this repository without delegating"
   ccx --effort high -p "Review this repository"
 
 Environment:
@@ -76,7 +107,14 @@ Environment:
   CCX_SMALL_FAST_MODEL   Utility/background-request model
   CCX_CONTEXT_WINDOW     Auto-compaction boundary (default: per model; 272000, spark 128000)
   CCX_PROXY_URL          Local proxy URL (default: http://127.0.0.1:18765)
+  CCX_PROXY_TRANSPORT    Upstream Codex transport for a proxy started by ccx (default: http)
   CCX_SHIM_URL           Optional retry-shim URL fronting the proxy (see scripts/ccx-retry-shim.py)
+  CCX_SUBAGENT_GUARDS     Apply bounded subagent/retry defaults (default: 1)
+  CCX_MAX_CONCURRENT_SUBAGENTS  Concurrent subagent cap (default: 3)
+  CCX_MAX_SUBAGENTS_PER_SESSION Total subagent spawn cap (default: 12)
+  CCX_MAX_SUBAGENT_SPAWN_DEPTH  Nesting cap; 1 prevents recursive agents (default: 1)
+  CCX_MAX_RETRIES         Claude Code request retry cap (default: 3)
+  CCX_API_TIMEOUT_MS      Claude Code per-request timeout (default: 300000)
   CCX_REAL_CLAUDE        Claude Code executable
 EOF
 }
@@ -91,15 +129,53 @@ Background effort: ${CCX_BG_EFFORT:-${CCX_BACKGROUND_EFFORT:-${config_bg_effort:
 Utility model: $background_model
 Context window: ${CCX_CONTEXT_WINDOW:-${config_context_window:-per-model default (272000; spark 128000)}}
 Proxy URL: $proxy_url
+Proxy Codex transport: $proxy_transport
 Retry shim URL: ${shim_url:-not configured}
+Subagent guards: $subagent_guards
+Concurrent subagent cap: $max_concurrent_subagents
+Subagents per session: $max_subagents_per_session
+Subagent spawn depth: $max_subagent_spawn_depth
+Request retry cap: $max_retries
+Request timeout: ${api_timeout_ms}ms
 EOF
 }
 
-validate_effort() {
+validate_session_effort() {
   case "$1" in
-    low|medium|high|xhigh|max) ;;
+    low|medium|high|xhigh|max|ultracode) ;;
     *)
-      printf "ccx: unsupported effort '%s' (expected low, medium, high, xhigh, or max)\n" "$1" >&2
+      printf "ccx: unsupported effort '%s' (expected low, medium, high, xhigh, max, or ultracode)\n" "$1" >&2
+      return 1
+      ;;
+  esac
+}
+
+validate_toggle() {
+  local name="$1"
+  local value="$2"
+  case "$value" in
+    0|1) ;;
+    *)
+      printf "ccx: %s must be 0 or 1 (got '%s')\n" "$name" "$value" >&2
+      return 1
+      ;;
+  esac
+}
+
+validate_positive_integer() {
+  local name="$1"
+  local value="$2"
+  if [[ ! "$value" =~ ^[1-9][0-9]*$ ]]; then
+    printf "ccx: %s must be a positive integer (got '%s')\n" "$name" "$value" >&2
+    return 1
+  fi
+}
+
+validate_proxy_transport() {
+  case "$1" in
+    http|websocket|auto) ;;
+    *)
+      printf "ccx: CCX_PROXY_TRANSPORT must be http, websocket, or auto (got '%s')\n" "$1" >&2
       return 1
       ;;
   esac
@@ -123,34 +199,67 @@ resolve_model() {
       selected_model='gpt-5.6-terra[1m]'
       model_name='GPT-5.6 Terra'
       ;;
+    terra-fast|gpt-5.6-terra-fast|'gpt-5.6-terra-fast[1m]')
+      selected_model='gpt-5.6-terra-fast[1m]'
+      model_name='GPT-5.6 Terra Fast'
+      ;;
     luna|gpt-5.6-luna|'gpt-5.6-luna[1m]')
       selected_model='gpt-5.6-luna[1m]'
       model_name='GPT-5.6 Luna'
+      ;;
+    luna-fast|gpt-5.6-luna-fast|'gpt-5.6-luna-fast[1m]')
+      selected_model='gpt-5.6-luna-fast[1m]'
+      model_name='GPT-5.6 Luna Fast'
       ;;
     5.5|gpt-5.5|'gpt-5.5[1m]')
       selected_model='gpt-5.5[1m]'
       model_name='GPT-5.5'
       ;;
+    5.5-fast|gpt-5.5-fast|'gpt-5.5-fast[1m]')
+      selected_model='gpt-5.5-fast[1m]'
+      model_name='GPT-5.5 Fast'
+      ;;
     5.4|gpt-5.4|'gpt-5.4[1m]')
       selected_model='gpt-5.4[1m]'
       model_name='GPT-5.4'
+      ;;
+    5.4-fast|gpt-5.4-fast|'gpt-5.4-fast[1m]')
+      selected_model='gpt-5.4-fast[1m]'
+      model_name='GPT-5.4 Fast'
       ;;
     mini|5.4-mini|gpt-5.4-mini|'gpt-5.4-mini[1m]')
       selected_model='gpt-5.4-mini[1m]'
       model_name='GPT-5.4 Mini'
       ;;
+    mini-fast|5.4-mini-fast|gpt-5.4-mini-fast|'gpt-5.4-mini-fast[1m]')
+      selected_model='gpt-5.4-mini-fast[1m]'
+      model_name='GPT-5.4 Mini Fast'
+      ;;
     5.3|gpt-5.3-codex|'gpt-5.3-codex[1m]')
       selected_model='gpt-5.3-codex[1m]'
       model_name='GPT-5.3 Codex'
+      ;;
+    5.3-fast|gpt-5.3-codex-fast|'gpt-5.3-codex-fast[1m]')
+      selected_model='gpt-5.3-codex-fast[1m]'
+      model_name='GPT-5.3 Codex Fast'
       ;;
     spark|5.3-spark|gpt-5.3-codex-spark)
       selected_model='gpt-5.3-codex-spark'
       model_name='GPT-5.3 Codex Spark'
       model_context_window='128000'
       ;;
+    spark-fast|5.3-spark-fast|gpt-5.3-codex-spark-fast)
+      selected_model='gpt-5.3-codex-spark-fast'
+      model_name='GPT-5.3 Codex Spark Fast'
+      model_context_window='128000'
+      ;;
     5.2|gpt-5.2|'gpt-5.2[1m]')
       selected_model='gpt-5.2[1m]'
       model_name='GPT-5.2'
+      ;;
+    5.2-fast|gpt-5.2-fast|'gpt-5.2-fast[1m]')
+      selected_model='gpt-5.2-fast[1m]'
+      model_name='GPT-5.2 Fast'
       ;;
     *)
       printf "ccx: unsupported model '%s'\n" "$1" >&2
@@ -162,6 +271,7 @@ resolve_model() {
 
 requested_model="${CCX_MODEL:-${config_model:-sol}}"
 selected_effort="${CCX_MAIN_EFFORT:-${config_main_effort:-xhigh}}"
+solo_mode=0
 
 case "${1:-}" in
   models|--models)
@@ -185,7 +295,11 @@ case "${1:-}" in
     selected_effort="${CCX_BG_EFFORT:-${CCX_BACKGROUND_EFFORT:-${config_bg_effort:-medium}}}"
     shift
     ;;
-  sol|sol-fast|terra|luna|5.5|5.4|mini|5.3|spark|5.2)
+  solo|no-agents)
+    solo_mode=1
+    shift
+    ;;
+  sol|sol-fast|terra|terra-fast|luna|luna-fast|5.5|5.5-fast|5.4|5.4-fast|mini|mini-fast|5.3|5.3-fast|spark|spark-fast|5.2|5.2-fast)
     requested_model="$1"
     shift
     ;;
@@ -198,9 +312,17 @@ case "${1:-}" in
     ;;
 esac
 
-validate_effort "$selected_effort"
+validate_session_effort "$selected_effort"
+validate_toggle CCX_SUBAGENT_GUARDS "$subagent_guards"
+validate_positive_integer CCX_MAX_CONCURRENT_SUBAGENTS "$max_concurrent_subagents"
+validate_positive_integer CCX_MAX_SUBAGENTS_PER_SESSION "$max_subagents_per_session"
+validate_positive_integer CCX_MAX_SUBAGENT_SPAWN_DEPTH "$max_subagent_spawn_depth"
+validate_positive_integer CCX_MAX_RETRIES "$max_retries"
+validate_positive_integer CCX_API_TIMEOUT_MS "$api_timeout_ms"
+validate_proxy_transport "$proxy_transport"
 resolve_model "$requested_model"
 context_window="${CCX_CONTEXT_WINDOW:-${config_context_window:-$model_context_window}}"
+validate_positive_integer CCX_CONTEXT_WINDOW "$context_window"
 
 claude_bin="${CCX_REAL_CLAUDE:-}"
 if [[ -z "$claude_bin" ]]; then
@@ -222,11 +344,12 @@ start_proxy() {
   elif command -v claude-code-proxy >/dev/null 2>&1; then
     local log_dir="${XDG_STATE_HOME:-$HOME/.local/state}/claude-code-proxy"
     mkdir -p "$log_dir"
-    nohup claude-code-proxy serve --no-monitor >>"$log_dir/service.log" 2>&1 &
+    nohup env CCP_CODEX_TRANSPORT="$proxy_transport" \
+      claude-code-proxy serve --no-monitor >>"$log_dir/service.log" 2>&1 &
   fi
 
-  local attempt
-  for attempt in $(seq 1 50); do
+  local _
+  for _ in $(seq 1 50); do
     if health_check; then
       return 0
     fi
@@ -287,6 +410,14 @@ export CLAUDE_CODE_ALWAYS_ENABLE_EFFORT="${CLAUDE_CODE_ALWAYS_ENABLE_EFFORT:-1}"
 export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC='1'
 export CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK='1'
 
+if [[ "$subagent_guards" == '1' ]]; then
+  export CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS="${CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS:-$max_concurrent_subagents}"
+  export CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION="${CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION:-$max_subagents_per_session}"
+  export CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH="${CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH:-$max_subagent_spawn_depth}"
+  export CLAUDE_CODE_MAX_RETRIES="${CLAUDE_CODE_MAX_RETRIES:-$max_retries}"
+  export API_TIMEOUT_MS="${API_TIMEOUT_MS:-$api_timeout_ms}"
+fi
+
 has_effort_argument=0
 for argument in "$@"; do
   if [[ "$argument" == '--effort' || "$argument" == --effort=* ]]; then
@@ -298,6 +429,9 @@ done
 claude_command=("$claude_bin" --model "$selected_model")
 if [[ "$has_effort_argument" -eq 0 ]]; then
   claude_command+=(--effort "$selected_effort")
+fi
+if [[ "$solo_mode" -eq 1 ]]; then
+  claude_command+=(--disallowedTools Agent)
 fi
 
 exec "${claude_command[@]}" "$@"
