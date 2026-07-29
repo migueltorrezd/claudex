@@ -31,14 +31,14 @@ flowchart LR
 
 ## Requirements
 
-- macOS or Linux for the automated Homebrew setup. The launcher itself is Bash.
+- macOS or Linux with Homebrew, or Windows 10/11 with Windows PowerShell 5.1.
 - [Claude Code](https://code.claude.com/docs/en/setup) 2.1.217 or newer. That is the first release supporting all three configurable sub-agent limits.
 - [Homebrew](https://brew.sh/) installed.
 - [`claude-code-proxy`](https://github.com/raine/claude-code-proxy) 0.1.17 or newer. The installer adds it when missing.
 - A ChatGPT plan with Codex access. Model availability varies by account and can change.
 - Git for cloning this repository.
 
-The upstream proxy also publishes Windows binaries, but this repository's service installer is currently tested only with Homebrew on macOS and Linux. Follow the [upstream Windows instructions](https://github.com/raine/claude-code-proxy#quick-start) and install `bin/ccx` manually if you want to adapt it.
+For Windows PowerShell 5.1 installation, see the [Windows guide](docs/windows.md).
 
 ## Five-minute setup
 
@@ -48,6 +48,16 @@ cd claudex
 ./scripts/setup.sh
 ```
 
+On Windows PowerShell 5.1:
+
+```powershell
+git clone https://github.com/migueltorrezd/claudex.git
+Set-Location .\claudex
+.\scripts\setup.ps1
+```
+
+See the [Windows guide](docs/windows.md) for requirements, PATH, and logon-service details.
+
 The wizard asks you to choose:
 
 1. The main model and its reasoning effort.
@@ -56,7 +66,7 @@ The wizard asks you to choose:
 4. The optional custom sub-agent's effort.
 5. Whether to install that agent, complete OAuth, and start the background service.
 
-Every question shows the recommended/current value. Before writing anything, the wizard displays a complete summary and asks for confirmation. Preferences are saved to `~/.config/claudex/config`; an existing config is backed up before it changes. OAuth credentials are never stored there.
+Every question shows the recommended/current value. Before writing anything, the wizard displays a complete summary and asks for confirmation. Preferences are saved to `~/.config/claudex/config` (on Windows, `%APPDATA%\Claudex\config` by default, following the precedence `CCX_CONFIG_FILE` -> `CCX_CONFIG_DIR\config` -> `XDG_CONFIG_HOME\claudex\config` -> `%APPDATA%\Claudex\config`); an existing config is backed up before it changes. OAuth credentials are never stored there.
 
 The tested defaults are:
 
@@ -75,11 +85,20 @@ claude-code-proxy codex auth login
 ./scripts/setup.sh
 ```
 
+On Windows PowerShell 5.1:
+
+```powershell
+claude-code-proxy codex auth login
+.\scripts\setup.ps1
+```
+
 The first command opens the official browser OAuth flow. On a headless machine, use:
 
 ```bash
 claude-code-proxy codex auth device
 ```
+
+(Windows: the same `claude-code-proxy codex auth device` command works from PowerShell.)
 
 Then make sure `~/.local/bin` is on your `PATH`:
 
@@ -89,6 +108,8 @@ export PATH="$HOME/.local/bin:$PATH"
 
 Add that line to `~/.zshrc` or `~/.bashrc` if necessary.
 
+On Windows, the installer can add its per-user launcher directory (`CCX_INSTALL_DIR`, default `%LOCALAPPDATA%\Claudex\bin`) to your **User** `PATH` automatically; see the [Windows guide](docs/windows.md#path-and-service-behavior) if you need to add it manually.
+
 For non-default locations, set `CCX_INSTALL_DIR`, `CCX_AGENT_DIR`, or `CCX_CONFIG_DIR`.
 
 For automation or an AI agent, keep the deterministic installer:
@@ -97,12 +118,27 @@ For automation or an AI agent, keep the deterministic installer:
 ./scripts/install.sh --with-agent
 ```
 
-The wizard also accepts explicit non-interactive flags. Run `./scripts/setup.sh --help` for the full list.
+On Windows PowerShell 5.1:
+
+```powershell
+.\scripts\install.ps1 -WithAgent
+```
+
+The wizard also accepts explicit non-interactive flags. Run `./scripts/setup.sh --help` for the full list (on Windows, `Get-Help .\scripts\setup.ps1 -Detailed`).
 
 Verify the complete installation:
 
 ```bash
 ./scripts/doctor.sh
+ccx models
+ccx config
+ccx
+```
+
+On Windows PowerShell 5.1:
+
+```powershell
+.\scripts\doctor.ps1
 ccx models
 ccx config
 ccx
@@ -160,7 +196,7 @@ The launcher supports these environment overrides:
 | `CCX_BG_MODEL` | `sol` | Model used by `ccx bg` |
 | `CCX_BG_EFFORT` | `medium` | Root-session effort for `ccx bg` |
 | `CCX_SMALL_FAST_MODEL` | `gpt-5.6-sol[1m]` | Claude utility/background-request model |
-| `CCX_CONTEXT_WINDOW` | `272000` | Auto-compaction boundary |
+| `CCX_CONTEXT_WINDOW` | Per-model | Auto-compaction boundary (`272000`; Spark `128000`) |
 | `CCX_PROXY_URL` | `http://127.0.0.1:18765` | Local proxy URL |
 | `CCX_PROXY_TRANSPORT` | `http` | Proxy-to-Codex transport: `http`, `websocket`, or `auto` |
 | `CCX_SHIM_URL` | unset | Optional bounded retry-shim URL |
@@ -220,7 +256,7 @@ For a generated workflow to aim above the normal medium guideline, choose `unres
 
 Keep scaling in the workflow script: fan out a phase with `pipeline()`, collect its results, then start the next phase. Do not make workflow agents recursively spawn more agents; nested delegation was not reliable in this test environment and obscures the runtime’s queue.
 
-`scripts/setup.sh` records `CCX_PROXY_TRANSPORT=http`, and the installer safely merges `codex.transport` into the upstream proxy’s `config.json` without discarding unrelated fields. A proxy restart is required before a changed transport takes effect.
+The setup scripts record `CCX_PROXY_TRANSPORT=http`. On macOS/Linux, the installer safely merges `codex.transport` into the upstream proxy’s `config.json` without discarding unrelated fields. On Windows, both the Scheduled Task and on-demand launcher pass the selected transport directly to the proxy process. A proxy restart is required before a changed transport takes effect.
 
 ## Why this is more than an alias
 
@@ -254,17 +290,17 @@ Four failure modes matter in practice, and the launcher now defends against all 
 
 **Transient 401s under parallel load.** During token refresh the proxy can briefly answer some requests with `401 Authentication failed` while others succeed. Claude Code treats 401 as terminal for a subagent, so a single flapped request can kill that worker. `scripts/ccx-retry-shim.py` is a small standard-library-only proxy that sits in front of `claude-code-proxy` and retries an explicit 401 exactly once by default.
 
-**WebSocket upgrade saturation during very large workflow bursts.** The upstream WebSocket default produced 20 terminal 403 upgrade failures in a 100-agent phase even though OAuth remained healthy. HTTP transport completed the same maximum-size workload twice without a failure, so Claudex persists `codex.transport=http` in the proxy configuration.
+**WebSocket upgrade saturation during very large workflow bursts.** The upstream WebSocket default produced 20 terminal 403 upgrade failures in a 100-agent phase even though OAuth remained healthy. HTTP transport completed three maximum-size runs without a failure, so Claudex persists `codex.transport=http` in the proxy configuration.
 
 The shim deliberately does not retry 5xx or transport failures by default because Claude Code already retries them. Retrying at both layers multiplies traffic precisely when a worker fleet is unhealthy. Advanced users can change the shim's retry statuses and limits through its documented `CCX_SHIM_*` environment variables.
 
-To use the shim, run it as a service listening on a free local port (default `18767`) and set `CCX_SHIM_URL` in `~/.config/claudex/config`:
+To use the shim, run it as a service listening on a free local port (default `18767`) and set `CCX_SHIM_URL` in `~/.config/claudex/config` (on Windows, `%APPDATA%\Claudex\config` by default):
 
 ```
 CCX_SHIM_URL=http://127.0.0.1:18767
 ```
 
-On macOS a minimal launchd agent works well (`RunAtLoad` + `KeepAlive`, `ProgramArguments = [/usr/bin/python3, /path/to/ccx-retry-shim.py]`); on Linux use a systemd user unit. The launcher health-checks the shim and falls back to the proxy directly, with a warning, when the shim is down. `/healthz` requests pass through the shim, so one check validates the whole chain.
+On macOS a minimal launchd agent works well (`RunAtLoad` + `KeepAlive`, `ProgramArguments = [/usr/bin/python3, /path/to/ccx-retry-shim.py]`); on Linux use a systemd user unit. On Windows, a per-user Scheduled Task running at logon works the same way `scripts/install.ps1` registers one for the proxy itself (see [Windows guide](docs/windows.md#path-and-service-behavior) for the `Register-ScheduledTask` pattern); point its action at whatever interpreter runs `scripts/ccx-retry-shim.py` on your machine. The launcher health-checks the shim and falls back to the proxy directly, with a warning, when the shim is down. `/healthz` requests pass through the shim, so one check validates the whole chain.
 
 The shim is optional. The sub-agent caps, Claude Code retry limit, and request timeout work without it.
 
@@ -300,7 +336,16 @@ bash tests/test-version.sh
 PYTHONDONTWRITEBYTECODE=1 python3 tests/test-retry-shim.py
 ```
 
-The retry-shim tests reproduce the relevant failure shapes: bounded 401 recovery, no duplicate 5xx retry layer, stalled headers, stalled streams, client cancellation, and connection saturation. CI runs the suite on both Linux and macOS.
+On Windows PowerShell 5.1:
+
+```powershell
+.\tests\test-ccx.ps1
+.\tests\test-setup.ps1
+.\tests\test-install.ps1
+.\tests\test-version.ps1
+```
+
+The retry-shim tests reproduce the relevant failure shapes: bounded 401 recovery, no duplicate 5xx retry layer, stalled headers, stalled streams, client cancellation, and connection saturation. CI runs the platform-appropriate suite on Linux, macOS, and Windows.
 
 ## Updating and uninstalling
 

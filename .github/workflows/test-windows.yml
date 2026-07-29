@@ -1,0 +1,51 @@
+name: Windows
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: windows-latest
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Parse PowerShell scripts
+        shell: powershell
+        run: |
+          $errors = @()
+          Get-ChildItem -Path . -Recurse -File -Filter *.ps1 | ForEach-Object {
+            $tokens = $null
+            $parseErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $_.FullName,
+              [ref] $tokens,
+              [ref] $parseErrors
+            ) | Out-Null
+            $errors += $parseErrors
+          }
+          if ($errors.Count -gt 0) {
+            $errors | Format-List | Out-String | Write-Error
+            exit 1
+          }
+
+      - name: Test ccx launcher
+        shell: powershell
+        run: .\tests\test-ccx.ps1
+
+      - name: Test setup scripts
+        shell: powershell
+        run: .\tests\test-setup.ps1
+
+      - name: Test install and setup delegation
+        shell: powershell
+        run: .\tests\test-install.ps1
+
+      - name: Test version checks
+        shell: powershell
+        run: .\tests\test-version.ps1
