@@ -124,7 +124,7 @@ function Get-ConfigValue {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
         [Parameter(Mandatory = $true)][string]$Key,
-        [Parameter(Mandatory = $true)][string]$Fallback
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Fallback
     )
 
     $value = $Fallback
