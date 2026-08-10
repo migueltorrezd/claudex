@@ -4,6 +4,9 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 launcher="$repo_root/bin/ccx"
 stub="$repo_root/tests/stub-claude.sh"
+test_config_dir="$(mktemp -d "${TMPDIR:-/tmp}/claudex-ccx-test.XXXXXX")"
+trap 'rm -rf "$test_config_dir"' EXIT
+export CCX_CONFIG_FILE="$test_config_dir/missing.conf"
 
 normal_output="$(CCX_REAL_CLAUDE="$stub" CCX_SKIP_HEALTH_CHECK=1 "$launcher" -p test)"
 grep -q '^MODEL=gpt-5.6-sol\[1m\]$' <<<"$normal_output"
