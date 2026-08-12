@@ -427,7 +427,7 @@ if [[ -n "$preserved_context_window" ]]; then
 else
   cat >> "$rendered_config" <<'EOF'
 # CCX_CONTEXT_WINDOW is intentionally unset: the launcher picks the correct
-# per-model boundary (272000 for most lanes, 128000 for spark). Set it only
+# per-model boundary (967000 for most lanes, 128000 for spark). Set it only
 # to force a specific value for every model.
 EOF
 fi

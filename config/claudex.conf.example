@@ -13,8 +13,8 @@ CCX_MAX_SUBAGENT_SPAWN_DEPTH=1
 CCX_MAX_RETRIES=3
 CCX_API_TIMEOUT_MS=300000
 # Leave CCX_CONTEXT_WINDOW unset for the per-model default
-# (272000 for most lanes, 128000 for spark).
-#CCX_CONTEXT_WINDOW=272000
+# (967000 for most lanes, 128000 for spark).
+#CCX_CONTEXT_WINDOW=967000
 CCX_PROXY_URL=http://127.0.0.1:18765
 # HTTP was reliable at 100 scheduled workflow agents; the upstream default
 # WebSocket transport failed transient upgrades during the same stress burst.

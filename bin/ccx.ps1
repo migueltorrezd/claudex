@@ -317,7 +317,7 @@ Environment:
   CCX_BG_MODEL           Model for ccx bg (default: sol)
   CCX_BG_EFFORT          Root effort for ccx bg (default: medium)
   CCX_SMALL_FAST_MODEL   Utility/background-request model
-  CCX_CONTEXT_WINDOW     Auto-compaction boundary (default: per model; 272000, spark 128000)
+  CCX_CONTEXT_WINDOW     Auto-compaction boundary (default: per model; 967000, spark 128000)
   CCX_PROXY_URL          Local proxy URL (default: http://127.0.0.1:18765)
   CCX_PROXY_TRANSPORT    Upstream Codex transport for a proxy started by ccx (default: http)
   CCX_SHIM_URL           Optional retry-shim URL fronting the proxy (see scripts/ccx-retry-shim.py)
@@ -336,7 +336,7 @@ function Show-Config {
     $mainEffort = Get-FirstNonEmpty @($env:CCX_MAIN_EFFORT, $script:configMainEffort, 'xhigh')
     $backgroundModel = Get-FirstNonEmpty @($env:CCX_BG_MODEL, $script:configBgModel, 'sol')
     $backgroundEffort = Get-FirstNonEmpty @($env:CCX_BG_EFFORT, $env:CCX_BACKGROUND_EFFORT, $script:configBgEffort, 'medium')
-    $contextWindow = Get-FirstNonEmpty @($env:CCX_CONTEXT_WINDOW, $script:configContextWindow, 'per-model default (272000; spark 128000)')
+    $contextWindow = Get-FirstNonEmpty @($env:CCX_CONTEXT_WINDOW, $script:configContextWindow, 'per-model default (967000; spark 128000)')
     $retryShim = Get-FirstNonEmpty @($script:shimUrl, 'not configured')
 
 @"
@@ -403,62 +403,62 @@ function Resolve-Model {
     # Most lanes are 272k-class. Spark is 128k, so Claude Code must compact
     # sooner instead of letting long sessions hit an upstream context error.
     switch -CaseSensitive ($Model) {
-        'sol' { return [PSCustomObject]@{ Selected = 'gpt-5.6-sol[1m]'; Name = 'GPT-5.6 Sol'; ContextWindow = '272000' } }
-        'gpt-5.6-sol' { return [PSCustomObject]@{ Selected = 'gpt-5.6-sol[1m]'; Name = 'GPT-5.6 Sol'; ContextWindow = '272000' } }
-        'gpt-5.6-sol[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.6-sol[1m]'; Name = 'GPT-5.6 Sol'; ContextWindow = '272000' } }
-        'sol-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.6-sol-fast[1m]'; Name = 'GPT-5.6 Sol Fast'; ContextWindow = '272000' } }
-        'gpt-5.6-sol-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.6-sol-fast[1m]'; Name = 'GPT-5.6 Sol Fast'; ContextWindow = '272000' } }
-        'gpt-5.6-sol-fast[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.6-sol-fast[1m]'; Name = 'GPT-5.6 Sol Fast'; ContextWindow = '272000' } }
-        'terra' { return [PSCustomObject]@{ Selected = 'gpt-5.6-terra[1m]'; Name = 'GPT-5.6 Terra'; ContextWindow = '272000' } }
-        'gpt-5.6-terra' { return [PSCustomObject]@{ Selected = 'gpt-5.6-terra[1m]'; Name = 'GPT-5.6 Terra'; ContextWindow = '272000' } }
-        'gpt-5.6-terra[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.6-terra[1m]'; Name = 'GPT-5.6 Terra'; ContextWindow = '272000' } }
-        'terra-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.6-terra-fast[1m]'; Name = 'GPT-5.6 Terra Fast'; ContextWindow = '272000' } }
-        'gpt-5.6-terra-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.6-terra-fast[1m]'; Name = 'GPT-5.6 Terra Fast'; ContextWindow = '272000' } }
-        'gpt-5.6-terra-fast[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.6-terra-fast[1m]'; Name = 'GPT-5.6 Terra Fast'; ContextWindow = '272000' } }
-        'luna' { return [PSCustomObject]@{ Selected = 'gpt-5.6-luna[1m]'; Name = 'GPT-5.6 Luna'; ContextWindow = '272000' } }
-        'gpt-5.6-luna' { return [PSCustomObject]@{ Selected = 'gpt-5.6-luna[1m]'; Name = 'GPT-5.6 Luna'; ContextWindow = '272000' } }
-        'gpt-5.6-luna[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.6-luna[1m]'; Name = 'GPT-5.6 Luna'; ContextWindow = '272000' } }
-        'luna-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.6-luna-fast[1m]'; Name = 'GPT-5.6 Luna Fast'; ContextWindow = '272000' } }
-        'gpt-5.6-luna-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.6-luna-fast[1m]'; Name = 'GPT-5.6 Luna Fast'; ContextWindow = '272000' } }
-        'gpt-5.6-luna-fast[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.6-luna-fast[1m]'; Name = 'GPT-5.6 Luna Fast'; ContextWindow = '272000' } }
-        '5.5' { return [PSCustomObject]@{ Selected = 'gpt-5.5[1m]'; Name = 'GPT-5.5'; ContextWindow = '272000' } }
-        'gpt-5.5' { return [PSCustomObject]@{ Selected = 'gpt-5.5[1m]'; Name = 'GPT-5.5'; ContextWindow = '272000' } }
-        'gpt-5.5[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.5[1m]'; Name = 'GPT-5.5'; ContextWindow = '272000' } }
-        '5.5-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.5-fast[1m]'; Name = 'GPT-5.5 Fast'; ContextWindow = '272000' } }
-        'gpt-5.5-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.5-fast[1m]'; Name = 'GPT-5.5 Fast'; ContextWindow = '272000' } }
-        'gpt-5.5-fast[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.5-fast[1m]'; Name = 'GPT-5.5 Fast'; ContextWindow = '272000' } }
-        '5.4' { return [PSCustomObject]@{ Selected = 'gpt-5.4[1m]'; Name = 'GPT-5.4'; ContextWindow = '272000' } }
-        'gpt-5.4' { return [PSCustomObject]@{ Selected = 'gpt-5.4[1m]'; Name = 'GPT-5.4'; ContextWindow = '272000' } }
-        'gpt-5.4[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.4[1m]'; Name = 'GPT-5.4'; ContextWindow = '272000' } }
-        '5.4-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.4-fast[1m]'; Name = 'GPT-5.4 Fast'; ContextWindow = '272000' } }
-        'gpt-5.4-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.4-fast[1m]'; Name = 'GPT-5.4 Fast'; ContextWindow = '272000' } }
-        'gpt-5.4-fast[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.4-fast[1m]'; Name = 'GPT-5.4 Fast'; ContextWindow = '272000' } }
-        'mini' { return [PSCustomObject]@{ Selected = 'gpt-5.4-mini[1m]'; Name = 'GPT-5.4 Mini'; ContextWindow = '272000' } }
-        '5.4-mini' { return [PSCustomObject]@{ Selected = 'gpt-5.4-mini[1m]'; Name = 'GPT-5.4 Mini'; ContextWindow = '272000' } }
-        'gpt-5.4-mini' { return [PSCustomObject]@{ Selected = 'gpt-5.4-mini[1m]'; Name = 'GPT-5.4 Mini'; ContextWindow = '272000' } }
-        'gpt-5.4-mini[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.4-mini[1m]'; Name = 'GPT-5.4 Mini'; ContextWindow = '272000' } }
-        'mini-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.4-mini-fast[1m]'; Name = 'GPT-5.4 Mini Fast'; ContextWindow = '272000' } }
-        '5.4-mini-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.4-mini-fast[1m]'; Name = 'GPT-5.4 Mini Fast'; ContextWindow = '272000' } }
-        'gpt-5.4-mini-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.4-mini-fast[1m]'; Name = 'GPT-5.4 Mini Fast'; ContextWindow = '272000' } }
-        'gpt-5.4-mini-fast[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.4-mini-fast[1m]'; Name = 'GPT-5.4 Mini Fast'; ContextWindow = '272000' } }
-        '5.3' { return [PSCustomObject]@{ Selected = 'gpt-5.3-codex[1m]'; Name = 'GPT-5.3 Codex'; ContextWindow = '272000' } }
-        'gpt-5.3-codex' { return [PSCustomObject]@{ Selected = 'gpt-5.3-codex[1m]'; Name = 'GPT-5.3 Codex'; ContextWindow = '272000' } }
-        'gpt-5.3-codex[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.3-codex[1m]'; Name = 'GPT-5.3 Codex'; ContextWindow = '272000' } }
-        '5.3-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.3-codex-fast[1m]'; Name = 'GPT-5.3 Codex Fast'; ContextWindow = '272000' } }
-        'gpt-5.3-codex-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.3-codex-fast[1m]'; Name = 'GPT-5.3 Codex Fast'; ContextWindow = '272000' } }
-        'gpt-5.3-codex-fast[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.3-codex-fast[1m]'; Name = 'GPT-5.3 Codex Fast'; ContextWindow = '272000' } }
+        'sol' { return [PSCustomObject]@{ Selected = 'gpt-5.6-sol[1m]'; Name = 'GPT-5.6 Sol'; ContextWindow = '967000' } }
+        'gpt-5.6-sol' { return [PSCustomObject]@{ Selected = 'gpt-5.6-sol[1m]'; Name = 'GPT-5.6 Sol'; ContextWindow = '967000' } }
+        'gpt-5.6-sol[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.6-sol[1m]'; Name = 'GPT-5.6 Sol'; ContextWindow = '967000' } }
+        'sol-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.6-sol-fast[1m]'; Name = 'GPT-5.6 Sol Fast'; ContextWindow = '967000' } }
+        'gpt-5.6-sol-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.6-sol-fast[1m]'; Name = 'GPT-5.6 Sol Fast'; ContextWindow = '967000' } }
+        'gpt-5.6-sol-fast[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.6-sol-fast[1m]'; Name = 'GPT-5.6 Sol Fast'; ContextWindow = '967000' } }
+        'terra' { return [PSCustomObject]@{ Selected = 'gpt-5.6-terra[1m]'; Name = 'GPT-5.6 Terra'; ContextWindow = '967000' } }
+        'gpt-5.6-terra' { return [PSCustomObject]@{ Selected = 'gpt-5.6-terra[1m]'; Name = 'GPT-5.6 Terra'; ContextWindow = '967000' } }
+        'gpt-5.6-terra[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.6-terra[1m]'; Name = 'GPT-5.6 Terra'; ContextWindow = '967000' } }
+        'terra-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.6-terra-fast[1m]'; Name = 'GPT-5.6 Terra Fast'; ContextWindow = '967000' } }
+        'gpt-5.6-terra-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.6-terra-fast[1m]'; Name = 'GPT-5.6 Terra Fast'; ContextWindow = '967000' } }
+        'gpt-5.6-terra-fast[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.6-terra-fast[1m]'; Name = 'GPT-5.6 Terra Fast'; ContextWindow = '967000' } }
+        'luna' { return [PSCustomObject]@{ Selected = 'gpt-5.6-luna[1m]'; Name = 'GPT-5.6 Luna'; ContextWindow = '967000' } }
+        'gpt-5.6-luna' { return [PSCustomObject]@{ Selected = 'gpt-5.6-luna[1m]'; Name = 'GPT-5.6 Luna'; ContextWindow = '967000' } }
+        'gpt-5.6-luna[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.6-luna[1m]'; Name = 'GPT-5.6 Luna'; ContextWindow = '967000' } }
+        'luna-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.6-luna-fast[1m]'; Name = 'GPT-5.6 Luna Fast'; ContextWindow = '967000' } }
+        'gpt-5.6-luna-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.6-luna-fast[1m]'; Name = 'GPT-5.6 Luna Fast'; ContextWindow = '967000' } }
+        'gpt-5.6-luna-fast[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.6-luna-fast[1m]'; Name = 'GPT-5.6 Luna Fast'; ContextWindow = '967000' } }
+        '5.5' { return [PSCustomObject]@{ Selected = 'gpt-5.5[1m]'; Name = 'GPT-5.5'; ContextWindow = '967000' } }
+        'gpt-5.5' { return [PSCustomObject]@{ Selected = 'gpt-5.5[1m]'; Name = 'GPT-5.5'; ContextWindow = '967000' } }
+        'gpt-5.5[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.5[1m]'; Name = 'GPT-5.5'; ContextWindow = '967000' } }
+        '5.5-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.5-fast[1m]'; Name = 'GPT-5.5 Fast'; ContextWindow = '967000' } }
+        'gpt-5.5-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.5-fast[1m]'; Name = 'GPT-5.5 Fast'; ContextWindow = '967000' } }
+        'gpt-5.5-fast[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.5-fast[1m]'; Name = 'GPT-5.5 Fast'; ContextWindow = '967000' } }
+        '5.4' { return [PSCustomObject]@{ Selected = 'gpt-5.4[1m]'; Name = 'GPT-5.4'; ContextWindow = '967000' } }
+        'gpt-5.4' { return [PSCustomObject]@{ Selected = 'gpt-5.4[1m]'; Name = 'GPT-5.4'; ContextWindow = '967000' } }
+        'gpt-5.4[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.4[1m]'; Name = 'GPT-5.4'; ContextWindow = '967000' } }
+        '5.4-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.4-fast[1m]'; Name = 'GPT-5.4 Fast'; ContextWindow = '967000' } }
+        'gpt-5.4-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.4-fast[1m]'; Name = 'GPT-5.4 Fast'; ContextWindow = '967000' } }
+        'gpt-5.4-fast[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.4-fast[1m]'; Name = 'GPT-5.4 Fast'; ContextWindow = '967000' } }
+        'mini' { return [PSCustomObject]@{ Selected = 'gpt-5.4-mini[1m]'; Name = 'GPT-5.4 Mini'; ContextWindow = '967000' } }
+        '5.4-mini' { return [PSCustomObject]@{ Selected = 'gpt-5.4-mini[1m]'; Name = 'GPT-5.4 Mini'; ContextWindow = '967000' } }
+        'gpt-5.4-mini' { return [PSCustomObject]@{ Selected = 'gpt-5.4-mini[1m]'; Name = 'GPT-5.4 Mini'; ContextWindow = '967000' } }
+        'gpt-5.4-mini[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.4-mini[1m]'; Name = 'GPT-5.4 Mini'; ContextWindow = '967000' } }
+        'mini-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.4-mini-fast[1m]'; Name = 'GPT-5.4 Mini Fast'; ContextWindow = '967000' } }
+        '5.4-mini-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.4-mini-fast[1m]'; Name = 'GPT-5.4 Mini Fast'; ContextWindow = '967000' } }
+        'gpt-5.4-mini-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.4-mini-fast[1m]'; Name = 'GPT-5.4 Mini Fast'; ContextWindow = '967000' } }
+        'gpt-5.4-mini-fast[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.4-mini-fast[1m]'; Name = 'GPT-5.4 Mini Fast'; ContextWindow = '967000' } }
+        '5.3' { return [PSCustomObject]@{ Selected = 'gpt-5.3-codex[1m]'; Name = 'GPT-5.3 Codex'; ContextWindow = '967000' } }
+        'gpt-5.3-codex' { return [PSCustomObject]@{ Selected = 'gpt-5.3-codex[1m]'; Name = 'GPT-5.3 Codex'; ContextWindow = '967000' } }
+        'gpt-5.3-codex[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.3-codex[1m]'; Name = 'GPT-5.3 Codex'; ContextWindow = '967000' } }
+        '5.3-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.3-codex-fast[1m]'; Name = 'GPT-5.3 Codex Fast'; ContextWindow = '967000' } }
+        'gpt-5.3-codex-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.3-codex-fast[1m]'; Name = 'GPT-5.3 Codex Fast'; ContextWindow = '967000' } }
+        'gpt-5.3-codex-fast[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.3-codex-fast[1m]'; Name = 'GPT-5.3 Codex Fast'; ContextWindow = '967000' } }
         'spark' { return [PSCustomObject]@{ Selected = 'gpt-5.3-codex-spark'; Name = 'GPT-5.3 Codex Spark'; ContextWindow = '128000' } }
         '5.3-spark' { return [PSCustomObject]@{ Selected = 'gpt-5.3-codex-spark'; Name = 'GPT-5.3 Codex Spark'; ContextWindow = '128000' } }
         'gpt-5.3-codex-spark' { return [PSCustomObject]@{ Selected = 'gpt-5.3-codex-spark'; Name = 'GPT-5.3 Codex Spark'; ContextWindow = '128000' } }
         'spark-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.3-codex-spark-fast'; Name = 'GPT-5.3 Codex Spark Fast'; ContextWindow = '128000' } }
         '5.3-spark-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.3-codex-spark-fast'; Name = 'GPT-5.3 Codex Spark Fast'; ContextWindow = '128000' } }
         'gpt-5.3-codex-spark-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.3-codex-spark-fast'; Name = 'GPT-5.3 Codex Spark Fast'; ContextWindow = '128000' } }
-        '5.2' { return [PSCustomObject]@{ Selected = 'gpt-5.2[1m]'; Name = 'GPT-5.2'; ContextWindow = '272000' } }
-        'gpt-5.2' { return [PSCustomObject]@{ Selected = 'gpt-5.2[1m]'; Name = 'GPT-5.2'; ContextWindow = '272000' } }
-        'gpt-5.2[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.2[1m]'; Name = 'GPT-5.2'; ContextWindow = '272000' } }
-        '5.2-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.2-fast[1m]'; Name = 'GPT-5.2 Fast'; ContextWindow = '272000' } }
-        'gpt-5.2-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.2-fast[1m]'; Name = 'GPT-5.2 Fast'; ContextWindow = '272000' } }
-        'gpt-5.2-fast[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.2-fast[1m]'; Name = 'GPT-5.2 Fast'; ContextWindow = '272000' } }
+        '5.2' { return [PSCustomObject]@{ Selected = 'gpt-5.2[1m]'; Name = 'GPT-5.2'; ContextWindow = '967000' } }
+        'gpt-5.2' { return [PSCustomObject]@{ Selected = 'gpt-5.2[1m]'; Name = 'GPT-5.2'; ContextWindow = '967000' } }
+        'gpt-5.2[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.2[1m]'; Name = 'GPT-5.2'; ContextWindow = '967000' } }
+        '5.2-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.2-fast[1m]'; Name = 'GPT-5.2 Fast'; ContextWindow = '967000' } }
+        'gpt-5.2-fast' { return [PSCustomObject]@{ Selected = 'gpt-5.2-fast[1m]'; Name = 'GPT-5.2 Fast'; ContextWindow = '967000' } }
+        'gpt-5.2-fast[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.2-fast[1m]'; Name = 'GPT-5.2 Fast'; ContextWindow = '967000' } }
         default { Stop-Ccx "ccx: unsupported model '$Model'" }
     }
 }

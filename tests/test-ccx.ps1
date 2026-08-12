@@ -164,7 +164,7 @@ Assert-ContainsLine $normalOutput 'SMALL_FAST=gpt-5.6-sol[1m]'
 Assert-ContainsLine $normalOutput 'EFFORT_ENV=unset'
 Assert-ContainsLine $normalOutput 'ARG=xhigh'
 Assert-ContainsLine $normalOutput 'BASE_URL=http://127.0.0.1:18765'
-Assert-ContainsLine $normalOutput 'COMPACT_WINDOW=272000'
+Assert-ContainsLine $normalOutput 'COMPACT_WINDOW=967000'
 Assert-ContainsLine $normalOutput 'MAX_CONCURRENT_SUBAGENTS=3'
 Assert-ContainsLine $normalOutput 'MAX_SUBAGENTS_PER_SESSION=12'
 Assert-ContainsLine $normalOutput 'MAX_SUBAGENT_SPAWN_DEPTH=1'
@@ -210,42 +210,42 @@ Assert-ContainsLine $terraOutput 'MODEL=gpt-5.6-terra[1m]'
 
 # Every documented alias and canonical model ID routes to the intended model.
 $modelCases = @(
-    @{ Argument = 'sol'; ExpectedModel = 'gpt-5.6-sol[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'sol-fast'; ExpectedModel = 'gpt-5.6-sol-fast[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'terra'; ExpectedModel = 'gpt-5.6-terra[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'terra-fast'; ExpectedModel = 'gpt-5.6-terra-fast[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'luna'; ExpectedModel = 'gpt-5.6-luna[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'luna-fast'; ExpectedModel = 'gpt-5.6-luna-fast[1m]'; ExpectedContext = '272000' },
-    @{ Argument = '5.5'; ExpectedModel = 'gpt-5.5[1m]'; ExpectedContext = '272000' },
-    @{ Argument = '5.5-fast'; ExpectedModel = 'gpt-5.5-fast[1m]'; ExpectedContext = '272000' },
-    @{ Argument = '5.4'; ExpectedModel = 'gpt-5.4[1m]'; ExpectedContext = '272000' },
-    @{ Argument = '5.4-fast'; ExpectedModel = 'gpt-5.4-fast[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'mini'; ExpectedModel = 'gpt-5.4-mini[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'mini-fast'; ExpectedModel = 'gpt-5.4-mini-fast[1m]'; ExpectedContext = '272000' },
-    @{ Argument = '5.3'; ExpectedModel = 'gpt-5.3-codex[1m]'; ExpectedContext = '272000' },
-    @{ Argument = '5.3-fast'; ExpectedModel = 'gpt-5.3-codex-fast[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'sol'; ExpectedModel = 'gpt-5.6-sol[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'sol-fast'; ExpectedModel = 'gpt-5.6-sol-fast[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'terra'; ExpectedModel = 'gpt-5.6-terra[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'terra-fast'; ExpectedModel = 'gpt-5.6-terra-fast[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'luna'; ExpectedModel = 'gpt-5.6-luna[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'luna-fast'; ExpectedModel = 'gpt-5.6-luna-fast[1m]'; ExpectedContext = '967000' },
+    @{ Argument = '5.5'; ExpectedModel = 'gpt-5.5[1m]'; ExpectedContext = '967000' },
+    @{ Argument = '5.5-fast'; ExpectedModel = 'gpt-5.5-fast[1m]'; ExpectedContext = '967000' },
+    @{ Argument = '5.4'; ExpectedModel = 'gpt-5.4[1m]'; ExpectedContext = '967000' },
+    @{ Argument = '5.4-fast'; ExpectedModel = 'gpt-5.4-fast[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'mini'; ExpectedModel = 'gpt-5.4-mini[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'mini-fast'; ExpectedModel = 'gpt-5.4-mini-fast[1m]'; ExpectedContext = '967000' },
+    @{ Argument = '5.3'; ExpectedModel = 'gpt-5.3-codex[1m]'; ExpectedContext = '967000' },
+    @{ Argument = '5.3-fast'; ExpectedModel = 'gpt-5.3-codex-fast[1m]'; ExpectedContext = '967000' },
     @{ Argument = 'spark'; ExpectedModel = 'gpt-5.3-codex-spark'; ExpectedContext = '128000' },
     @{ Argument = 'spark-fast'; ExpectedModel = 'gpt-5.3-codex-spark-fast'; ExpectedContext = '128000' },
-    @{ Argument = '5.2'; ExpectedModel = 'gpt-5.2[1m]'; ExpectedContext = '272000' },
-    @{ Argument = '5.2-fast'; ExpectedModel = 'gpt-5.2-fast[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'gpt-5.6-sol'; ExpectedModel = 'gpt-5.6-sol[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'gpt-5.6-sol-fast'; ExpectedModel = 'gpt-5.6-sol-fast[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'gpt-5.6-terra'; ExpectedModel = 'gpt-5.6-terra[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'gpt-5.6-terra-fast'; ExpectedModel = 'gpt-5.6-terra-fast[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'gpt-5.6-luna'; ExpectedModel = 'gpt-5.6-luna[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'gpt-5.6-luna-fast'; ExpectedModel = 'gpt-5.6-luna-fast[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'gpt-5.5'; ExpectedModel = 'gpt-5.5[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'gpt-5.5-fast'; ExpectedModel = 'gpt-5.5-fast[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'gpt-5.4'; ExpectedModel = 'gpt-5.4[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'gpt-5.4-fast'; ExpectedModel = 'gpt-5.4-fast[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'gpt-5.4-mini'; ExpectedModel = 'gpt-5.4-mini[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'gpt-5.4-mini-fast'; ExpectedModel = 'gpt-5.4-mini-fast[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'gpt-5.3-codex'; ExpectedModel = 'gpt-5.3-codex[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'gpt-5.3-codex-fast'; ExpectedModel = 'gpt-5.3-codex-fast[1m]'; ExpectedContext = '272000' },
+    @{ Argument = '5.2'; ExpectedModel = 'gpt-5.2[1m]'; ExpectedContext = '967000' },
+    @{ Argument = '5.2-fast'; ExpectedModel = 'gpt-5.2-fast[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'gpt-5.6-sol'; ExpectedModel = 'gpt-5.6-sol[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'gpt-5.6-sol-fast'; ExpectedModel = 'gpt-5.6-sol-fast[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'gpt-5.6-terra'; ExpectedModel = 'gpt-5.6-terra[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'gpt-5.6-terra-fast'; ExpectedModel = 'gpt-5.6-terra-fast[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'gpt-5.6-luna'; ExpectedModel = 'gpt-5.6-luna[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'gpt-5.6-luna-fast'; ExpectedModel = 'gpt-5.6-luna-fast[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'gpt-5.5'; ExpectedModel = 'gpt-5.5[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'gpt-5.5-fast'; ExpectedModel = 'gpt-5.5-fast[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'gpt-5.4'; ExpectedModel = 'gpt-5.4[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'gpt-5.4-fast'; ExpectedModel = 'gpt-5.4-fast[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'gpt-5.4-mini'; ExpectedModel = 'gpt-5.4-mini[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'gpt-5.4-mini-fast'; ExpectedModel = 'gpt-5.4-mini-fast[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'gpt-5.3-codex'; ExpectedModel = 'gpt-5.3-codex[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'gpt-5.3-codex-fast'; ExpectedModel = 'gpt-5.3-codex-fast[1m]'; ExpectedContext = '967000' },
     @{ Argument = 'gpt-5.3-codex-spark'; ExpectedModel = 'gpt-5.3-codex-spark'; ExpectedContext = '128000' },
     @{ Argument = 'gpt-5.3-codex-spark-fast'; ExpectedModel = 'gpt-5.3-codex-spark-fast'; ExpectedContext = '128000' },
-    @{ Argument = 'gpt-5.2'; ExpectedModel = 'gpt-5.2[1m]'; ExpectedContext = '272000' },
-    @{ Argument = 'gpt-5.2-fast'; ExpectedModel = 'gpt-5.2-fast[1m]'; ExpectedContext = '272000' }
+    @{ Argument = 'gpt-5.2'; ExpectedModel = 'gpt-5.2[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'gpt-5.2-fast'; ExpectedModel = 'gpt-5.2-fast[1m]'; ExpectedContext = '967000' }
 )
 foreach ($modelCase in $modelCases) {
     $modelOutput = (Invoke-Ccx -Environment (New-TestEnvironment) -Arguments @($modelCase.Argument, '-p', 'test')).Output

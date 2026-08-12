@@ -196,7 +196,7 @@ The launcher supports these environment overrides:
 | `CCX_BG_MODEL` | `sol` | Model used by `ccx bg` |
 | `CCX_BG_EFFORT` | `medium` | Root-session effort for `ccx bg` |
 | `CCX_SMALL_FAST_MODEL` | `gpt-5.6-sol[1m]` | Claude utility/background-request model |
-| `CCX_CONTEXT_WINDOW` | Per-model | Auto-compaction boundary (`272000`; Spark `128000`) |
+| `CCX_CONTEXT_WINDOW` | Per-model | Auto-compaction boundary (`967000`; Spark `128000`) |
 | `CCX_PROXY_URL` | `http://127.0.0.1:18765` | Local proxy URL |
 | `CCX_PROXY_TRANSPORT` | `http` | Proxy-to-Codex transport: `http`, `websocket`, or `auto` |
 | `CCX_SHIM_URL` | unset | Optional bounded retry-shim URL |

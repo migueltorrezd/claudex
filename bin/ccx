@@ -105,7 +105,7 @@ Environment:
   CCX_BG_MODEL           Model for ccx bg (default: sol)
   CCX_BG_EFFORT          Root effort for ccx bg (default: medium)
   CCX_SMALL_FAST_MODEL   Utility/background-request model
-  CCX_CONTEXT_WINDOW     Auto-compaction boundary (default: per model; 272000, spark 128000)
+  CCX_CONTEXT_WINDOW     Auto-compaction boundary (default: per model; 967000, spark 128000)
   CCX_PROXY_URL          Local proxy URL (default: http://127.0.0.1:18765)
   CCX_PROXY_TRANSPORT    Upstream Codex transport for a proxy started by ccx (default: http)
   CCX_SHIM_URL           Optional retry-shim URL fronting the proxy (see scripts/ccx-retry-shim.py)
@@ -127,7 +127,7 @@ Main effort: ${CCX_MAIN_EFFORT:-${config_main_effort:-xhigh}}
 Background model: ${CCX_BG_MODEL:-${config_bg_model:-sol}}
 Background effort: ${CCX_BG_EFFORT:-${CCX_BACKGROUND_EFFORT:-${config_bg_effort:-medium}}}
 Utility model: $background_model
-Context window: ${CCX_CONTEXT_WINDOW:-${config_context_window:-per-model default (272000; spark 128000)}}
+Context window: ${CCX_CONTEXT_WINDOW:-${config_context_window:-per-model default (967000; spark 128000)}}
 Proxy URL: $proxy_url
 Proxy Codex transport: $proxy_transport
 Retry shim URL: ${shim_url:-not configured}
@@ -185,7 +185,7 @@ resolve_model() {
   # Per-model auto-compaction boundary. Most lanes are 272k-class; spark is a
   # 128k model, and advertising 272k to Claude Code makes long sessions hit
   # upstream context-length errors instead of compacting.
-  model_context_window='272000'
+  model_context_window='967000'
   case "$1" in
     sol|gpt-5.6-sol|'gpt-5.6-sol[1m]')
       selected_model='gpt-5.6-sol[1m]'
