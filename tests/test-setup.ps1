@@ -234,6 +234,38 @@ try {
     if ($backupCount -ne 1) {
         throw "Expected invalid input to leave one config backup, found $backupCount"
     }
+    foreach ($astraAlias in @('astra', 'astra-fast')) {
+        $astraConfigDir = Join-Path $testRoot $astraAlias
+        $astraConfigFile = Join-Path $astraConfigDir 'config'
+        $astraSetupEnvironment = $setupEnvironment.Clone()
+        $astraSetupEnvironment['CCX_CONFIG_DIR'] = $astraConfigDir
+        Invoke-PowerShellFile -Path $setup -Environment $astraSetupEnvironment -Arguments @(
+            '-MainModel', $astraAlias, '-MainEffort', 'max',
+            '-BgModel', $astraAlias, '-BgEffort', 'medium',
+            '-UtilityModel', $astraAlias, '-ConfigOnly', '-Yes'
+        ) | Out-Null
+        # Exercise utility wire-ID -> alias parsing on a second setup run.
+        Invoke-PowerShellFile -Path $setup -Environment $astraSetupEnvironment -Arguments @(
+            '-ConfigOnly', '-Yes'
+        ) | Out-Null
+        $astraLauncherEnvironment = $astraSetupEnvironment.Clone()
+        $astraLauncherEnvironment['CCX_CONFIG_FILE'] = $astraConfigFile
+        $astraLauncherEnvironment['CCX_REAL_CLAUDE'] = $stub
+        $astraLauncherEnvironment['CCX_SKIP_HEALTH_CHECK'] = '1'
+        foreach ($lane in @('main', 'bg')) {
+            $laneArguments = @('-p', 'test')
+            $expectedEffort = 'max'
+            if ($lane -eq 'bg') {
+                $laneArguments = @('bg') + $laneArguments
+                $expectedEffort = 'medium'
+            }
+            $astraOutput = (Invoke-PowerShellFile -Path $launcher -Environment $astraLauncherEnvironment -Arguments $laneArguments).Output
+            Assert-OutputContainsLine $astraOutput "MODEL=gpt-6-$astraAlias"
+            Assert-OutputContainsLine $astraOutput "SMALL_FAST=gpt-6-$astraAlias"
+            Assert-OutputContainsLine $astraOutput 'COMPACT_WINDOW=272000'
+            Assert-OutputContainsLine $astraOutput "ARG=$expectedEffort"
+        }
+    }
 }
 finally {
     Remove-Item -LiteralPath $testRoot -Recurse -Force -ErrorAction SilentlyContinue

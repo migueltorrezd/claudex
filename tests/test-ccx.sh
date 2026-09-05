@@ -61,6 +61,10 @@ terra_output="$(CCX_REAL_CLAUDE="$stub" CCX_SKIP_HEALTH_CHECK=1 "$launcher" terr
 grep -q '^MODEL=gpt-5.6-terra\[1m\]$' <<<"$terra_output"
 
 fast_aliases=(
+  'astra:gpt-6-astra'
+  'astra-fast:gpt-6-astra-fast'
+  'gpt-6-astra:gpt-6-astra'
+  'gpt-6-astra-fast:gpt-6-astra-fast'
   'sol-fast:gpt-5.6-sol-fast[1m]'
   'terra-fast:gpt-5.6-terra-fast[1m]'
   'luna-fast:gpt-5.6-luna-fast[1m]'
@@ -76,6 +80,16 @@ for alias_mapping in "${fast_aliases[@]}"; do
   expected_model="${alias_mapping#*:}"
   alias_output="$(CCX_REAL_CLAUDE="$stub" CCX_SKIP_HEALTH_CHECK=1 "$launcher" "$alias_name" -p test)"
   grep -qF "MODEL=$expected_model" <<<"$alias_output"
+  if [[ "$expected_model" == gpt-6-astra* ]]; then
+    grep -q '^COMPACT_WINDOW=272000$' <<<"$alias_output"
+  fi
+done
+
+for effort in low medium high xhigh max; do
+  astra_output="$(CCX_REAL_CLAUDE="$stub" CCX_SKIP_HEALTH_CHECK=1 "$launcher" --model gpt-6-astra --effort "$effort" -p test)"
+  grep -q '^MODEL=gpt-6-astra$' <<<"$astra_output"
+  grep -q "^ARG=$effort$" <<<"$astra_output"
+  grep -q '^EFFORT_ENV=unset$' <<<"$astra_output"
 done
 
 ultracode_output="$(CCX_MAIN_EFFORT=ultracode CCX_REAL_CLAUDE="$stub" CCX_SKIP_HEALTH_CHECK=1 "$launcher" -p test)"
