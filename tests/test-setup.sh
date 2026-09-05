@@ -92,4 +92,28 @@ fi
 after_hash="$(cksum "$config_file")"
 test "$before_hash" = "$after_hash"
 
+# Both Astra aliases must round-trip through all three model preferences.
+for alias_name in astra astra-fast; do
+  astra_config_dir="$tmp_dir/$alias_name"
+  CCX_CONFIG_DIR="$astra_config_dir" "$repo_root/scripts/setup.sh" \
+    --main-model "$alias_name" --main-effort max \
+    --bg-model "$alias_name" --bg-effort medium \
+    --utility-model "$alias_name" --config-only --yes >/dev/null
+  # Rerun without model flags to exercise utility wire-ID -> alias parsing.
+  CCX_CONFIG_DIR="$astra_config_dir" "$repo_root/scripts/setup.sh" \
+    --config-only --yes >/dev/null
+  for lane in main bg; do
+    lane_args=(-p test)
+    if [[ "$lane" == bg ]]; then lane_args=(bg "${lane_args[@]}"); fi
+    astra_output="$(CCX_CONFIG_FILE="$astra_config_dir/config" \
+      CCX_REAL_CLAUDE="$repo_root/tests/stub-claude.sh" CCX_SKIP_HEALTH_CHECK=1 \
+      "$repo_root/bin/ccx" "${lane_args[@]}")"
+    grep -q "^MODEL=gpt-6-$alias_name$" <<<"$astra_output"
+    grep -q "^SMALL_FAST=gpt-6-$alias_name$" <<<"$astra_output"
+    grep -q '^COMPACT_WINDOW=272000$' <<<"$astra_output"
+    if [[ "$lane" == bg ]]; then expected_effort=medium; else expected_effort=max; fi
+    grep -q "^ARG=$expected_effort$" <<<"$astra_output"
+  done
+done
+
 printf 'All setup wizard tests passed.\n'

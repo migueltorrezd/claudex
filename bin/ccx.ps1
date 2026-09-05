@@ -279,6 +279,8 @@ function Show-Models {
 Usage: ccx [model|bg|solo] [claude arguments]
 
 Models:
+  astra     GPT-6 Astra (requires an Astra-capable proxy build)
+  astra-fast GPT-6 Astra, priority service tier
   sol       GPT-5.6 Sol (default)
   sol-fast  GPT-5.6 Sol, priority service tier
   terra     GPT-5.6 Terra
@@ -317,7 +319,7 @@ Environment:
   CCX_BG_MODEL           Model for ccx bg (default: sol)
   CCX_BG_EFFORT          Root effort for ccx bg (default: medium)
   CCX_SMALL_FAST_MODEL   Utility/background-request model
-  CCX_CONTEXT_WINDOW     Auto-compaction boundary (default: per model; 967000, spark 128000)
+  CCX_CONTEXT_WINDOW     Auto-compaction boundary (default: per model; 967000, astra 272000, spark 128000)
   CCX_PROXY_URL          Local proxy URL (default: http://127.0.0.1:18765)
   CCX_PROXY_TRANSPORT    Upstream Codex transport for a proxy started by ccx (default: http)
   CCX_SHIM_URL           Optional retry-shim URL fronting the proxy (see scripts/ccx-retry-shim.py)
@@ -336,7 +338,7 @@ function Show-Config {
     $mainEffort = Get-FirstNonEmpty @($env:CCX_MAIN_EFFORT, $script:configMainEffort, 'xhigh')
     $backgroundModel = Get-FirstNonEmpty @($env:CCX_BG_MODEL, $script:configBgModel, 'sol')
     $backgroundEffort = Get-FirstNonEmpty @($env:CCX_BG_EFFORT, $env:CCX_BACKGROUND_EFFORT, $script:configBgEffort, 'medium')
-    $contextWindow = Get-FirstNonEmpty @($env:CCX_CONTEXT_WINDOW, $script:configContextWindow, 'per-model default (967000; spark 128000)')
+    $contextWindow = Get-FirstNonEmpty @($env:CCX_CONTEXT_WINDOW, $script:configContextWindow, 'per-model default (967000; astra 272000; spark 128000)')
     $retryShim = Get-FirstNonEmpty @($script:shimUrl, 'not configured')
 
 @"
@@ -400,9 +402,13 @@ function Test-ProxyTransport {
 function Resolve-Model {
     param([Parameter(Mandatory = $true)][string]$Model)
 
-    # Most lanes are 272k-class. Spark is 128k, so Claude Code must compact
-    # sooner instead of letting long sessions hit an upstream context error.
+    # Astra's subscription lane uses 272k; Spark uses 128k. Neither lane gets
+    # the larger compaction boundary used by the other launcher aliases.
     switch -CaseSensitive ($Model) {
+        'astra' { return [PSCustomObject]@{ Selected = 'gpt-6-astra'; Name = 'GPT-6 Astra'; ContextWindow = '272000' } }
+        'gpt-6-astra' { return [PSCustomObject]@{ Selected = 'gpt-6-astra'; Name = 'GPT-6 Astra'; ContextWindow = '272000' } }
+        'astra-fast' { return [PSCustomObject]@{ Selected = 'gpt-6-astra-fast'; Name = 'GPT-6 Astra Fast'; ContextWindow = '272000' } }
+        'gpt-6-astra-fast' { return [PSCustomObject]@{ Selected = 'gpt-6-astra-fast'; Name = 'GPT-6 Astra Fast'; ContextWindow = '272000' } }
         'sol' { return [PSCustomObject]@{ Selected = 'gpt-5.6-sol[1m]'; Name = 'GPT-5.6 Sol'; ContextWindow = '967000' } }
         'gpt-5.6-sol' { return [PSCustomObject]@{ Selected = 'gpt-5.6-sol[1m]'; Name = 'GPT-5.6 Sol'; ContextWindow = '967000' } }
         'gpt-5.6-sol[1m]' { return [PSCustomObject]@{ Selected = 'gpt-5.6-sol[1m]'; Name = 'GPT-5.6 Sol'; ContextWindow = '967000' } }
@@ -553,6 +559,7 @@ try {
             $forwardArguments = @($forwardArguments | Select-Object -Skip 1)
         }
         elseif ($firstArgument -cin @(
+            'astra', 'astra-fast',
             'sol', 'sol-fast', 'terra', 'terra-fast', 'luna', 'luna-fast',
             '5.5', '5.5-fast', '5.4', '5.4-fast', 'mini', 'mini-fast',
             '5.3', '5.3-fast', 'spark', 'spark-fast', '5.2', '5.2-fast'

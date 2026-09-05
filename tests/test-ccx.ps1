@@ -210,6 +210,10 @@ Assert-ContainsLine $terraOutput 'MODEL=gpt-5.6-terra[1m]'
 
 # Every documented alias and canonical model ID routes to the intended model.
 $modelCases = @(
+    @{ Argument = 'astra'; ExpectedModel = 'gpt-6-astra'; ExpectedContext = '272000' },
+    @{ Argument = 'astra-fast'; ExpectedModel = 'gpt-6-astra-fast'; ExpectedContext = '272000' },
+    @{ Argument = 'gpt-6-astra'; ExpectedModel = 'gpt-6-astra'; ExpectedContext = '272000' },
+    @{ Argument = 'gpt-6-astra-fast'; ExpectedModel = 'gpt-6-astra-fast'; ExpectedContext = '272000' },
     @{ Argument = 'sol'; ExpectedModel = 'gpt-5.6-sol[1m]'; ExpectedContext = '967000' },
     @{ Argument = 'sol-fast'; ExpectedModel = 'gpt-5.6-sol-fast[1m]'; ExpectedContext = '967000' },
     @{ Argument = 'terra'; ExpectedModel = 'gpt-5.6-terra[1m]'; ExpectedContext = '967000' },
@@ -257,6 +261,13 @@ $modelOptionOutput = (Invoke-Ccx -Environment (New-TestEnvironment) -Arguments @
 Assert-ContainsLine $modelOptionOutput 'MODEL=gpt-5.6-luna[1m]'
 $shortModelOptionOutput = (Invoke-Ccx -Environment (New-TestEnvironment) -Arguments @('-m', '5.2', '-p', 'test')).Output
 Assert-ContainsLine $shortModelOptionOutput 'MODEL=gpt-5.2[1m]'
+
+foreach ($astraEffort in @('low', 'medium', 'high', 'xhigh', 'max')) {
+    $astraOutput = (Invoke-Ccx -Environment (New-TestEnvironment) -Arguments @('--model', 'gpt-6-astra', '--effort', $astraEffort, '-p', 'test')).Output
+    Assert-ContainsLine $astraOutput 'MODEL=gpt-6-astra'
+    Assert-ContainsLine $astraOutput "ARG=$astraEffort"
+    Assert-ContainsLine $astraOutput 'EFFORT_ENV=unset'
+}
 
 $invalidEffortResult = Invoke-Ccx -Environment (Merge-Environment (New-TestEnvironment) @{ CCX_MAIN_EFFORT = 'unsupported' }) -Arguments @('-p', 'test') -AllowFailure
 if ($invalidEffortResult.ExitCode -eq 0) {

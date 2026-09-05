@@ -166,6 +166,8 @@ ccx bg --bg "Refactor it"  # launch that lane as a real Claude background agent
 ccx solo -p "Review this"   # run with the Agent tool disabled
 ccx terra                   # GPT-5.6 Terra
 ccx terra-fast              # GPT-5.6 Terra, priority service tier
+ccx astra                   # GPT-6 Astra (requires an Astra-capable proxy build)
+ccx astra --effort max       # GPT-6 Astra at maximum reasoning effort
 ccx luna                    # GPT-5.6 Luna
 ccx 5.5                     # GPT-5.5
 ccx 5.4                     # GPT-5.4
@@ -196,7 +198,7 @@ The launcher supports these environment overrides:
 | `CCX_BG_MODEL` | `sol` | Model used by `ccx bg` |
 | `CCX_BG_EFFORT` | `medium` | Root-session effort for `ccx bg` |
 | `CCX_SMALL_FAST_MODEL` | `gpt-5.6-sol[1m]` | Claude utility/background-request model |
-| `CCX_CONTEXT_WINDOW` | Per-model | Auto-compaction boundary (`967000`; Spark `128000`) |
+| `CCX_CONTEXT_WINDOW` | Per-model | Auto-compaction boundary (`967000`; Astra `272000`; Spark `128000`) |
 | `CCX_PROXY_URL` | `http://127.0.0.1:18765` | Local proxy URL |
 | `CCX_PROXY_TRANSPORT` | `http` | Proxy-to-Codex transport: `http`, `websocket`, or `auto` |
 | `CCX_SHIM_URL` | unset | Optional bounded retry-shim URL |
@@ -305,6 +307,29 @@ On macOS a minimal launchd agent works well (`RunAtLoad` + `KeepAlive`, `Program
 The shim is optional. The sub-agent caps, Claude Code retry limit, and request timeout work without it.
 
 ## Models
+
+### GPT-6 Astra
+
+`ccx astra` and `ccx astra-fast` select `gpt-6-astra` and its priority-service
+variant. Full IDs also work, for example `ccx --model gpt-6-astra --effort high`.
+Both setup wizards offer Astra for the main, background, and utility model.
+The existing Sol defaults are unchanged.
+
+Astra requires a proxy build containing
+[raine/claude-code-proxy#129](https://github.com/raine/claude-code-proxy/pull/129).
+The published **v0.1.35 release does not contain that change**, even though the
+upstream main branch containing it still reports version 0.1.35. Check
+`claude-code-proxy models` for `gpt-6-astra`; the version number alone is not
+enough. Launcher support does not grant account access.
+
+Astra supports `low`, `medium`, `high`, `xhigh`, and `max` effort. Codex's
+`ultra` mode is not an additional reasoning level supported by this proxy.
+The Astra lane uses a **272000** auto-compaction boundary and sends the plain
+model ID without a `[1m]` suffix, matching the subscription integration reported
+in upstream #129. The public API context limit is not a guarantee for a Codex
+subscription. An explicit `CCX_CONTEXT_WINDOW` still overrides this boundary.
+
+### Other models
 
 At the time of writing, the upstream proxy recognizes these Codex model IDs:
 
