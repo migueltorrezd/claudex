@@ -53,7 +53,7 @@ For automation, use the installer with the tested defaults:
 .\scripts\install.ps1 -WithAgent
 ```
 
-`install.ps1` accepts `-WithAgent`, `-Login`, `-NoService`, `-NoPath`, and `-Help`. Use `-NoPath` when you do not want the installer to touch your **User** `PATH` at all. It validates the supported Claude Code and proxy versions, downloads a checksum-verified upstream Windows proxy only if no proxy binary is already present (it does not update an existing binary), preserves an existing configuration, installs the `ccx` launcher, and optionally renders the managed worker. If authentication is missing, it stops with instructions unless `-Login` was supplied. OAuth is interactive; complete it in the browser and rerun the installer if necessary:
+`install.ps1` accepts `-WithAgent`, `-Login`, `-StartService`, `-NoService`, `-NoPath`, and `-Help`. Use `-NoPath` when you do not want the installer to touch your **User** `PATH` at all. It validates the supported Claude Code and proxy versions, downloads a checksum-verified upstream Windows proxy only if no proxy binary is already present (it does not update an existing binary), preserves an existing configuration, installs the `ccx` launcher, and optionally renders the managed worker. If authentication is missing, it stops with instructions unless `-Login` was supplied. OAuth is interactive; complete it in the browser and rerun the installer if necessary:
 
 ```powershell
 claude-code-proxy codex auth login
@@ -66,7 +66,9 @@ Do not copy an OAuth token into a script, a configuration file, or this reposito
 
 The launcher is installed into the per-user location selected by `CCX_INSTALL_DIR` (by default, `%LOCALAPPDATA%\Claudex\bin`). The installer can add that directory to the **User** `PATH`; a new terminal is required before `ccx` resolves by name. It does not modify the Machine `PATH`.
 
-Unless `-NoService` is selected, setup registers a per-user Scheduled Task named `Claudex Proxy` that starts `claude-code-proxy serve --no-monitor` at logon with the configured Codex transport. It is not a Windows service and does not require administrator rights. `ccx` checks `http://127.0.0.1:18765/healthz`; if the task did not start the proxy, it starts the proxy for the current user and waits briefly for the health check. The task and proxy keep the loopback-only bind address.
+No logon Scheduled Task is registered by default. `ccx` checks `http://127.0.0.1:18765/healthz` and, when the proxy is not already running, starts it for the current user (hidden, loopback-only) and waits briefly for the health check, so the proxy is available whenever the launcher is used.
+
+Select `-StartService` (or answer yes to setup question 9) when the proxy must also be reachable by clients that do not go through `ccx` -- for example a `claude` session configured with `ANTHROPIC_BASE_URL=http://127.0.0.1:18765` directly. Setup then registers a per-user Scheduled Task named `Claudex Proxy` that starts `claude-code-proxy serve --no-monitor` at logon with the configured Codex transport. It is not a Windows service and does not require administrator rights. Note that the task runs the proxy in the foreground of an interactive PowerShell host, so a console window showing the proxy banner stays open for the whole session. The task and proxy keep the loopback-only bind address.
 
 To inspect the task without changing it:
 
@@ -168,7 +170,7 @@ Run the deterministic Windows test suite after an update:
 
 - **`ccx` is not recognized:** Open a new PowerShell window. Check `[Environment]::GetEnvironmentVariable('Path', 'User')`; if the install directory is absent, add the `CCX_INSTALL_DIR` directory to User `PATH` manually, then restart the terminal.
 - **PowerShell refuses to run a script:** use the process-only `-ExecutionPolicy Bypass` command shown above. Do not weaken the system-wide execution policy just for Claudex.
-- **Health check fails:** run ` .\scripts\doctor.ps1`, inspect the `Claudex Proxy` task, and confirm that no other process is using port `18765`. Starting the task manually is safe: `Start-ScheduledTask -TaskName 'Claudex Proxy'`.
+- **Health check fails:** run ` .\scripts\doctor.ps1` and confirm that no other process is using port `18765`. `ccx` starts the proxy on demand, so a missing `Claudex Proxy` task is expected and reported as INFO. If you opted into the task with `-StartService`, inspect it; starting it manually is safe: `Start-ScheduledTask -TaskName 'Claudex Proxy'`.
 - **OAuth is missing or expired:** run `claude-code-proxy codex auth login` interactively, then rerun the selected setup command. Never paste tokens into config or logs.
 - **Another launcher or worker already exists:** the installer intentionally refuses to overwrite files without its Claudex managed marker. Set `CCX_INSTALL_DIR` or `CCX_AGENT_DIR` to a separate location, or review and move the conflicting file yourself.
 - **A model is unavailable:** choose a model your ChatGPT account supports. The proxy recognizing a model does not guarantee account access.

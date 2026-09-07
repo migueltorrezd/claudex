@@ -18,8 +18,14 @@ Installs or updates the optional managed claudex-worker agent.
 .PARAMETER Login
 Starts interactive Codex OAuth if authentication is not healthy.
 
+.PARAMETER StartService
+Registers and starts the Claudex Proxy logon Scheduled Task. Off by default:
+ccx starts the proxy on demand, so the logon task is only needed when the proxy
+must also be available to clients that do not go through the ccx launcher.
+
 .PARAMETER NoService
-Does not register or start the Claudex Proxy logon Scheduled Task.
+Does not register or start the Claudex Proxy logon Scheduled Task. This is the
+default; the switch is retained so existing scripts keep working.
 
 .PARAMETER NoPath
 Does not add the Claudex install directory to the User PATH.
@@ -34,12 +40,13 @@ Shows detailed installer help and exits without changing anything.
 .\scripts\install.ps1 -WithAgent -Login
 
 .EXAMPLE
-.\scripts\install.ps1 -NoService
+.\scripts\install.ps1 -StartService
 #>
 [CmdletBinding()]
 param(
     [switch]$WithAgent,
     [switch]$Login,
+    [switch]$StartService,
     [switch]$NoService,
     [switch]$NoPath,
     [Alias('h')][switch]$Help
@@ -946,8 +953,21 @@ function Invoke-Install {
         Stop-Install "install: CCX_PROXY_TRANSPORT must be http, websocket, or auto: $proxyTransport" 2
     }
 
-    $taskState = 'skipped (-NoService)'
-    if (-not $NoService.IsPresent) {
+    if ($StartService.IsPresent -and $NoService.IsPresent) {
+        Stop-Install 'install: -StartService and -NoService cannot be used together' 2
+    }
+
+    # The logon Scheduled Task is opt-in: ccx health-checks the proxy and starts
+    # it on demand, so an always-running background proxy is redundant for the
+    # launcher and costs a console window at every logon. Pass -StartService
+    # when the proxy must also serve clients that bypass the ccx launcher.
+    $taskState = if ($NoService.IsPresent) {
+        'skipped (-NoService)'
+    }
+    else {
+        'skipped (default; pass -StartService to register it)'
+    }
+    if ($StartService.IsPresent) {
         try {
             Register-AndStartProxyTask -ProxyPath $proxyPath -ProxyUrl $proxyUrl -Transport $proxyTransport
             $taskState = 'registered, started, and healthy'
@@ -958,7 +978,7 @@ function Invoke-Install {
             }
             $taskState = 'not started (see warning)'
             [Console]::Error.WriteLine("install: warning: could not register/start the per-user '$($script:taskName)' task: $($_.Exception.Message)")
-            [Console]::Error.WriteLine('install: continuing; ccx can start the proxy on demand, or rerun with -NoService.')
+            [Console]::Error.WriteLine('install: continuing; ccx starts the proxy on demand, or rerun without -StartService.')
         }
     }
 
