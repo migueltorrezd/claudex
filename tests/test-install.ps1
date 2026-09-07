@@ -389,6 +389,7 @@ exit /b 0
 param(
     [switch]$WithAgent,
     [switch]$Login,
+    [switch]$StartService,
     [switch]$NoService,
     [switch]$NoPath,
     [Alias('h')][switch]$Help
@@ -397,6 +398,7 @@ param(
 $record = [PSCustomObject]@{
     WithAgent = $WithAgent.IsPresent
     Login = $Login.IsPresent
+    StartService = $StartService.IsPresent
     NoService = $NoService.IsPresent
     NoPath = $NoPath.IsPresent
     ConfigFile = $env:CCX_CONFIG_FILE
@@ -433,6 +435,7 @@ exit 0
     Assert-Equal 'True' ([string]$record.WithAgent) '-WithAgent should have reached install.ps1'
     Assert-Equal 'False' ([string]$record.Login) '-NoLogin should have kept Login unset on install.ps1'
     Assert-Equal 'True' ([string]$record.NoService) '-NoService should have reached install.ps1'
+    Assert-Equal 'False' ([string]$record.StartService) '-NoService should have kept StartService unset on install.ps1'
     Assert-Equal 'True' ([string]$record.NoPath) '-NoPath should have reached install.ps1'
     Assert-Equal ([IO.Path]::GetFullPath($configTargetC)) ([IO.Path]::GetFullPath([string]$record.ConfigFile)) 'CCX_CONFIG_FILE passed to install.ps1 should match the config setup.ps1 just wrote'
     Assert-Equal ([IO.Path]::GetFullPath($configDirC)) ([IO.Path]::GetFullPath([string]$record.ConfigDir)) 'CCX_CONFIG_DIR passed to install.ps1 should match the resolved config directory'

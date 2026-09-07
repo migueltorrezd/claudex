@@ -300,7 +300,7 @@ To use the shim, run it as a service listening on a free local port (default `18
 CCX_SHIM_URL=http://127.0.0.1:18767
 ```
 
-On macOS a minimal launchd agent works well (`RunAtLoad` + `KeepAlive`, `ProgramArguments = [/usr/bin/python3, /path/to/ccx-retry-shim.py]`); on Linux use a systemd user unit. On Windows, a per-user Scheduled Task running at logon works the same way `scripts/install.ps1` registers one for the proxy itself (see [Windows guide](docs/windows.md#path-and-service-behavior) for the `Register-ScheduledTask` pattern); point its action at whatever interpreter runs `scripts/ccx-retry-shim.py` on your machine. The launcher health-checks the shim and falls back to the proxy directly, with a warning, when the shim is down. `/healthz` requests pass through the shim, so one check validates the whole chain.
+On macOS a minimal launchd agent works well (`RunAtLoad` + `KeepAlive`, `ProgramArguments = [/usr/bin/python3, /path/to/ccx-retry-shim.py]`); on Linux use a systemd user unit. On Windows, a per-user Scheduled Task running at logon works the same way `scripts/install.ps1 -StartService` can register one for the proxy itself (see [Windows guide](docs/windows.md#path-and-service-behavior) for the `Register-ScheduledTask` pattern); point its action at whatever interpreter runs `scripts/ccx-retry-shim.py` on your machine. The launcher health-checks the shim and falls back to the proxy directly, with a warning, when the shim is down. `/healthz` requests pass through the shim, so one check validates the whole chain.
 
 The shim is optional. The sub-agent caps, Claude Code retry limit, and request timeout work without it.
 

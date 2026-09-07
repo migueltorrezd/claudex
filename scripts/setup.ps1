@@ -42,7 +42,8 @@ Does not start browser OAuth.
 Registers and starts the per-user proxy Scheduled Task.
 
 .PARAMETER NoService
-Does not register or start the per-user proxy Scheduled Task.
+Does not register or start the per-user proxy Scheduled Task. This is the
+default: ccx starts the proxy on demand.
 
 .PARAMETER NoPath
 Does not add the Claudex install directory to the User PATH.
@@ -575,10 +576,10 @@ function Invoke-Setup {
         $startBackgroundService = 'no'
     }
     elseif ($Yes.IsPresent) {
-        $startBackgroundService = 'yes'
+        $startBackgroundService = 'no'
     }
     else {
-        $startBackgroundService = Read-YesNo '9. Start the proxy automatically as a background service?' 'yes'
+        $startBackgroundService = Read-YesNo '9. Also start the proxy at logon? (not needed for ccx, which starts it on demand)' 'no'
     }
 
     Assert-Model $selectedMainModel
@@ -684,7 +685,10 @@ function Invoke-Setup {
     if ($runLogin -ceq 'yes') {
         $installParameters['Login'] = $true
     }
-    if ($startBackgroundService -ceq 'no') {
+    if ($startBackgroundService -ceq 'yes') {
+        $installParameters['StartService'] = $true
+    }
+    else {
         $installParameters['NoService'] = $true
     }
     if ($NoPath.IsPresent) {
