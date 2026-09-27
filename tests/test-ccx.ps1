@@ -6,6 +6,8 @@ $cmdLauncher = Join-Path $repoRoot 'bin\ccx.cmd'
 $stub = Join-Path $PSScriptRoot 'stub-claude.ps1'
 $customConfig = Join-Path $PSScriptRoot 'fixtures\custom.conf'
 $powerShellExe = Join-Path $PSHOME 'powershell.exe'
+$legacyNativeQuoting = $PSVersionTable.PSVersion.Major -lt 7 -or
+    ((Get-Variable -Name PSNativeCommandArgumentPassing -ValueOnly -ErrorAction SilentlyContinue) -eq 'Legacy')
 $missingConfig = Join-Path ([IO.Path]::GetTempPath()) ("ccx-missing-$PID-$([Guid]::NewGuid().ToString('N')).conf")
 
 $cleanEnvironmentNames = @(
@@ -77,7 +79,11 @@ function Invoke-Ccx {
 
     $previous = Set-TestEnvironment $Environment
     try {
-        $output = & $powerShellExe -NoProfile -File $launcher @Arguments 2>&1 | Out-String
+        # Windows PowerShell 5.1 (and PS 7 in Legacy mode) strips embedded double quotes when it
+        # relays arguments to a native process, which turns inline JSON such as --settings
+        # '{"a":1}' into invalid text before the launcher sees it. Escape them for that hop only.
+        $nativeArguments = if ($legacyNativeQuoting) { @($Arguments | ForEach-Object { ([string]$_) -replace '"', '\"' }) } else { $Arguments }
+        $output = & $powerShellExe -NoProfile -File $launcher @nativeArguments 2>&1 | Out-String
         $exitCode = $LASTEXITCODE
     }
     catch {

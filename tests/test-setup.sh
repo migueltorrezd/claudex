@@ -54,9 +54,11 @@ sed \
   -e 's#^CCX_API_TIMEOUT_MS=.*#CCX_API_TIMEOUT_MS=240000#' \
   "$config_file" > "$config_file.custom"
 mv "$config_file.custom" "$config_file"
-printf 'CCX_PROXY_SERVICE=com.example.test-proxy\n' >> "$config_file"
-printf 'CCX_CONTEXT_WINDOW=200000\n' >> "$config_file"
-printf 'CCX_SHIM_URL=http://127.0.0.1:18767\n' >> "$config_file"
+{
+  printf 'CCX_PROXY_SERVICE=com.example.test-proxy\n'
+  printf 'CCX_CONTEXT_WINDOW=200000\n'
+  printf 'CCX_SHIM_URL=http://127.0.0.1:18767\n'
+} >> "$config_file"
 
 CCX_CONFIG_DIR="$config_dir" "$repo_root/scripts/setup.sh" \
   --main-model luna \
