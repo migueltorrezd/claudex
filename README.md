@@ -37,6 +37,7 @@ flowchart LR
 - [`claude-code-proxy`](https://github.com/raine/claude-code-proxy) 0.1.17 or newer. The installer adds it when missing.
 - A ChatGPT plan with Codex access. Model availability varies by account and can change.
 - Git for cloning this repository.
+- On macOS/Linux, `jq` for Astra runs with custom `--settings` (the installer adds it if missing). Windows uses its built-in JSON support.
 
 For Windows PowerShell 5.1 installation, see the [Windows guide](docs/windows.md).
 
@@ -159,11 +160,14 @@ script afterward and report the final model, effort, auth, service, and health s
 
 ## Usage
 
+GPT-6 Astra is available through `ccx astra` at medium reasoning. It requires an Astra-capable upstream build; see [Astra setup, verification, and recovery](docs/astra.md). The launcher checks the running catalogue and refuses unsupported routing. It also supplies session-only Astra compatibility metadata so Claude recognizes the custom model without changing the GPT backend; custom `--settings` are merged without changing your other settings (see the Astra guide).
+
 ```bash
 ccx                         # GPT-5.6 Sol, xhigh root-session effort
 ccx bg                      # GPT-5.6 Sol, medium root-session effort
 ccx bg --bg "Refactor it"  # launch that lane as a real Claude background agent
 ccx solo -p "Review this"   # run with the Agent tool disabled
+ccx astra                   # GPT-6 Astra, medium effort
 ccx terra                   # GPT-5.6 Terra
 ccx terra-fast              # GPT-5.6 Terra, priority service tier
 ccx luna                    # GPT-5.6 Luna
@@ -196,8 +200,9 @@ The launcher supports these environment overrides:
 | `CCX_BG_MODEL` | `sol` | Model used by `ccx bg` |
 | `CCX_BG_EFFORT` | `medium` | Root-session effort for `ccx bg` |
 | `CCX_SMALL_FAST_MODEL` | `gpt-5.6-sol[1m]` | Claude utility/background-request model |
-| `CCX_CONTEXT_WINDOW` | Per-model | Auto-compaction boundary (`967000`; Spark `128000`) |
+| `CCX_CONTEXT_WINDOW` | Per-model | Auto-compaction boundary (`272000`; Spark `128000`) |
 | `CCX_PROXY_URL` | `http://127.0.0.1:18765` | Local proxy URL |
+| `CCX_PROXY_SERVICE` | unset | Optional managed macOS launchd service label for recovery |
 | `CCX_PROXY_TRANSPORT` | `http` | Proxy-to-Codex transport: `http`, `websocket`, or `auto` |
 | `CCX_SHIM_URL` | unset | Optional bounded retry-shim URL |
 | `CCX_SUBAGENT_GUARDS` | `1` | Apply the limits below; set `0` to opt out |
@@ -306,8 +311,9 @@ The shim is optional. The sub-agent caps, Claude Code retry limit, and request t
 
 ## Models
 
-At the time of writing, the upstream proxy recognizes these Codex model IDs:
+Verify the installed proxy catalogue before selecting a model. Astra requires the newer upstream revision described above; the other supported launcher IDs are:
 
+- `gpt-6-astra`
 - `gpt-5.6-sol`
 - `gpt-5.6-terra`
 - `gpt-5.6-luna`
@@ -349,7 +355,9 @@ The retry-shim tests reproduce the relevant failure shapes: bounded 401 recovery
 
 ## Updating and uninstalling
 
-Update the proxy:
+First run `ccx config` and identify the active **Proxy service**. A managed service such as `com.migle.claudex-proxy` owns the pinned Astra build: follow [its update and recovery procedure](docs/astra.md#future-updates-and-recovery). Do not start or restart the Homebrew service alongside it. Replace a pinned build only after verifying that the replacement supports Astra and no requests are active.
+
+For an installation whose proxy is actually managed by Homebrew, with no separate managed service, update with:
 
 ```bash
 brew update

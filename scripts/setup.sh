@@ -41,7 +41,7 @@ Options:
   -h, --help                 Show this help
 
 Model aliases:
-  sol, sol-fast, terra, terra-fast, luna, luna-fast, 5.5, 5.5-fast,
+  astra, astra-fast, sol, sol-fast, terra, terra-fast, luna, luna-fast, 5.5, 5.5-fast,
   5.4, 5.4-fast, mini, mini-fast, 5.3, 5.3-fast, spark, spark-fast,
   5.2, 5.2-fast
 EOF
@@ -110,6 +110,8 @@ read_config_value CCX_PROXY_URL 'http://127.0.0.1:18765'
 preserved_proxy_url="$CONFIG_VALUE"
 read_config_value CCX_PROXY_TRANSPORT http
 preserved_proxy_transport="$CONFIG_VALUE"
+read_config_value CCX_PROXY_SERVICE ''
+preserved_proxy_service="$CONFIG_VALUE"
 read_config_value CCX_SHIM_URL ''
 preserved_shim_url="$CONFIG_VALUE"
 read_config_value CCX_SUBAGENT_GUARDS 1
@@ -127,6 +129,8 @@ preserved_api_timeout_ms="$CONFIG_VALUE"
 
 utility_alias_from_wire() {
   case "$1" in
+    gpt-6-astra|'gpt-6-astra[1m]') UTILITY_ALIAS='astra' ;;
+    gpt-6-astra-fast|'gpt-6-astra-fast[1m]') UTILITY_ALIAS='astra-fast' ;;
     'gpt-5.6-sol[1m]'|gpt-5.6-sol) UTILITY_ALIAS='sol' ;;
     'gpt-5.6-sol-fast[1m]'|gpt-5.6-sol-fast) UTILITY_ALIAS='sol-fast' ;;
     'gpt-5.6-terra[1m]'|gpt-5.6-terra) UTILITY_ALIAS='terra' ;;
@@ -151,6 +155,8 @@ utility_alias_from_wire() {
 
 wire_model_from_alias() {
   case "$1" in
+    astra) WIRE_MODEL='gpt-6-astra' ;;
+    astra-fast) WIRE_MODEL='gpt-6-astra-fast' ;;
     sol) WIRE_MODEL='gpt-5.6-sol[1m]' ;;
     sol-fast) WIRE_MODEL='gpt-5.6-sol-fast[1m]' ;;
     terra) WIRE_MODEL='gpt-5.6-terra[1m]' ;;
@@ -303,7 +309,7 @@ printf 'This stores model and effort preferences only. OAuth tokens never enter 
 
 if [[ -z "$main_model" ]]; then
   if [[ "$assume_yes" -eq 1 ]]; then main_model="$default_main_model"; else
-    choose_option '1. Main model for normal ccx sessions' "$default_main_model" sol sol-fast terra terra-fast luna luna-fast 5.5 5.5-fast 5.4 5.4-fast mini mini-fast 5.3 5.3-fast spark spark-fast 5.2 5.2-fast
+    choose_option '1. Main model for normal ccx sessions' "$default_main_model" astra astra-fast sol sol-fast terra terra-fast luna luna-fast 5.5 5.5-fast 5.4 5.4-fast mini mini-fast 5.3 5.3-fast spark spark-fast 5.2 5.2-fast
     main_model="$CHOICE"
   fi
 fi
@@ -317,7 +323,7 @@ fi
 
 if [[ -z "$bg_model" ]]; then
   if [[ "$assume_yes" -eq 1 ]]; then bg_model="$default_bg_model"; else
-    choose_option '3. Model for the ccx bg lane' "$default_bg_model" sol sol-fast terra terra-fast luna luna-fast 5.5 5.5-fast 5.4 5.4-fast mini mini-fast 5.3 5.3-fast spark spark-fast 5.2 5.2-fast
+    choose_option '3. Model for the ccx bg lane' "$default_bg_model" astra astra-fast sol sol-fast terra terra-fast luna luna-fast 5.5 5.5-fast 5.4 5.4-fast mini mini-fast 5.3 5.3-fast spark spark-fast 5.2 5.2-fast
     bg_model="$CHOICE"
   fi
 fi
@@ -331,7 +337,7 @@ fi
 
 if [[ -z "$utility_model" ]]; then
   if [[ "$assume_yes" -eq 1 ]]; then utility_model="$default_utility_model"; else
-    choose_option '5. Utility model for titles, token counts, and small background requests' "$default_utility_model" sol sol-fast terra terra-fast luna luna-fast 5.5 5.5-fast 5.4 5.4-fast mini mini-fast 5.3 5.3-fast spark spark-fast 5.2 5.2-fast
+    choose_option '5. Utility model for titles, token counts, and small background requests' "$default_utility_model" astra astra-fast sol sol-fast terra terra-fast luna luna-fast 5.5 5.5-fast 5.4 5.4-fast mini mini-fast 5.3 5.3-fast spark spark-fast 5.2 5.2-fast
     utility_model="$CHOICE"
   fi
 fi
@@ -421,13 +427,14 @@ CCX_MAX_RETRIES=$preserved_max_retries
 CCX_API_TIMEOUT_MS=$preserved_api_timeout_ms
 CCX_PROXY_URL=$preserved_proxy_url
 CCX_PROXY_TRANSPORT=$preserved_proxy_transport
+CCX_PROXY_SERVICE=$preserved_proxy_service
 EOF
 if [[ -n "$preserved_context_window" ]]; then
   printf 'CCX_CONTEXT_WINDOW=%s\n' "$preserved_context_window" >> "$rendered_config"
 else
   cat >> "$rendered_config" <<'EOF'
 # CCX_CONTEXT_WINDOW is intentionally unset: the launcher picks the correct
-# per-model boundary (967000 for most lanes, 128000 for spark). Set it only
+# per-model boundary (272000 for most lanes, 128000 for spark). Set it only
 # to force a specific value for every model.
 EOF
 fi

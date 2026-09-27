@@ -18,6 +18,7 @@ config_max_subagents_per_session=''
 config_max_subagent_spawn_depth=''
 config_max_retries=''
 config_api_timeout_ms=''
+config_proxy_service=''
 
 trim() {
   local value="$1"
@@ -47,6 +48,7 @@ if [[ -f "$config_file" ]]; then
       CCX_MAX_SUBAGENT_SPAWN_DEPTH) config_max_subagent_spawn_depth="$config_value" ;;
       CCX_MAX_RETRIES) config_max_retries="$config_value" ;;
       CCX_API_TIMEOUT_MS) config_api_timeout_ms="$config_value" ;;
+      CCX_PROXY_SERVICE) config_proxy_service="$config_value" ;;
     esac
   done < "$config_file"
 fi
@@ -61,12 +63,15 @@ max_subagents_per_session="${CCX_MAX_SUBAGENTS_PER_SESSION:-${config_max_subagen
 max_subagent_spawn_depth="${CCX_MAX_SUBAGENT_SPAWN_DEPTH:-${config_max_subagent_spawn_depth:-1}}"
 max_retries="${CCX_MAX_RETRIES:-${config_max_retries:-3}}"
 api_timeout_ms="${CCX_API_TIMEOUT_MS:-${config_api_timeout_ms:-300000}}"
+proxy_service="${CCX_PROXY_SERVICE:-${config_proxy_service:-}}"
 
 print_models() {
   cat <<'EOF'
 Usage: ccx [model|bg|solo] [claude arguments]
 
 Models:
+  astra     GPT-6 Astra, medium reasoning
+  astra-fast GPT-6 Astra, priority service tier
   sol       GPT-5.6 Sol (default)
   sol-fast  GPT-5.6 Sol, priority service tier
   terra     GPT-5.6 Terra
@@ -105,8 +110,9 @@ Environment:
   CCX_BG_MODEL           Model for ccx bg (default: sol)
   CCX_BG_EFFORT          Root effort for ccx bg (default: medium)
   CCX_SMALL_FAST_MODEL   Utility/background-request model
-  CCX_CONTEXT_WINDOW     Auto-compaction boundary (default: per model; 967000, spark 128000)
+  CCX_CONTEXT_WINDOW     Auto-compaction boundary (default: per model; 272000, spark 128000)
   CCX_PROXY_URL          Local proxy URL (default: http://127.0.0.1:18765)
+  CCX_PROXY_SERVICE      Optional managed macOS launchd label (otherwise Homebrew)
   CCX_PROXY_TRANSPORT    Upstream Codex transport for a proxy started by ccx (default: http)
   CCX_SHIM_URL           Optional retry-shim URL fronting the proxy (see scripts/ccx-retry-shim.py)
   CCX_SUBAGENT_GUARDS     Apply bounded subagent/retry defaults (default: 1)
@@ -127,8 +133,9 @@ Main effort: ${CCX_MAIN_EFFORT:-${config_main_effort:-xhigh}}
 Background model: ${CCX_BG_MODEL:-${config_bg_model:-sol}}
 Background effort: ${CCX_BG_EFFORT:-${CCX_BACKGROUND_EFFORT:-${config_bg_effort:-medium}}}
 Utility model: $background_model
-Context window: ${CCX_CONTEXT_WINDOW:-${config_context_window:-per-model default (967000; spark 128000)}}
+Context window: ${CCX_CONTEXT_WINDOW:-${config_context_window:-per-model default (272000; spark 128000)}}
 Proxy URL: $proxy_url
+Proxy service: ${proxy_service:-Homebrew default}
 Proxy Codex transport: $proxy_transport
 Retry shim URL: ${shim_url:-not configured}
 Subagent guards: $subagent_guards
@@ -185,8 +192,16 @@ resolve_model() {
   # Per-model auto-compaction boundary. Most lanes are 272k-class; spark is a
   # 128k model, and advertising 272k to Claude Code makes long sessions hit
   # upstream context-length errors instead of compacting.
-  model_context_window='967000'
+  model_context_window='272000'
   case "$1" in
+    astra|gpt-6-astra|'gpt-6-astra[1m]')
+      selected_model='gpt-6-astra'
+      model_name='GPT-6 Astra'
+      ;;
+    astra-fast|gpt-6-astra-fast|'gpt-6-astra-fast[1m]')
+      selected_model='gpt-6-astra-fast'
+      model_name='GPT-6 Astra Fast'
+      ;;
     sol|gpt-5.6-sol|'gpt-5.6-sol[1m]')
       selected_model='gpt-5.6-sol[1m]'
       model_name='GPT-5.6 Sol'
@@ -272,6 +287,7 @@ resolve_model() {
 requested_model="${CCX_MODEL:-${config_model:-sol}}"
 selected_effort="${CCX_MAIN_EFFORT:-${config_main_effort:-xhigh}}"
 solo_mode=0
+background_lane=0
 
 case "${1:-}" in
   models|--models)
@@ -291,6 +307,7 @@ case "${1:-}" in
     shift 2
     ;;
   bg|background)
+    background_lane=1
     requested_model="${CCX_BG_MODEL:-${config_bg_model:-sol}}"
     selected_effort="${CCX_BG_EFFORT:-${CCX_BACKGROUND_EFFORT:-${config_bg_effort:-medium}}}"
     shift
@@ -299,7 +316,7 @@ case "${1:-}" in
     solo_mode=1
     shift
     ;;
-  sol|sol-fast|terra|terra-fast|luna|luna-fast|5.5|5.5-fast|5.4|5.4-fast|mini|mini-fast|5.3|5.3-fast|spark|spark-fast|5.2|5.2-fast)
+  astra|astra-fast|sol|sol-fast|terra|terra-fast|luna|luna-fast|5.5|5.5-fast|5.4|5.4-fast|mini|mini-fast|5.3|5.3-fast|spark|spark-fast|5.2|5.2-fast)
     requested_model="$1"
     shift
     ;;
@@ -321,6 +338,13 @@ validate_positive_integer CCX_MAX_RETRIES "$max_retries"
 validate_positive_integer CCX_API_TIMEOUT_MS "$api_timeout_ms"
 validate_proxy_transport "$proxy_transport"
 resolve_model "$requested_model"
+if [[ "$selected_model" == gpt-6-astra* ]]; then
+  # Explicit Astra defaults to medium; a configured Astra lane keeps its effort.
+  configured_main_model="${CCX_MODEL:-${config_model:-sol}}"
+  if [[ "$background_lane" -eq 0 && "$configured_main_model" != astra* && "$configured_main_model" != gpt-6-astra* ]]; then
+    selected_effort="${CCX_MAIN_EFFORT:-medium}"
+  fi
+fi
 context_window="${CCX_CONTEXT_WINDOW:-${config_context_window:-$model_context_window}}"
 validate_positive_integer CCX_CONTEXT_WINDOW "$context_window"
 
@@ -338,7 +362,9 @@ health_check() {
 }
 
 start_proxy() {
-  if command -v brew >/dev/null 2>&1; then
+  if [[ -n "$proxy_service" && "$(uname -s)" == 'Darwin' ]]; then
+    launchctl kickstart "gui/$(id -u)/$proxy_service" >/dev/null 2>&1 || true
+  elif command -v brew >/dev/null 2>&1; then
     brew services start claude-code-proxy >/dev/null 2>&1 || \
       brew services start raine/claude-code-proxy/claude-code-proxy >/dev/null 2>&1 || true
   elif command -v claude-code-proxy >/dev/null 2>&1; then
@@ -384,8 +410,16 @@ if [[ "${CCX_SKIP_HEALTH_CHECK:-0}" != '1' ]]; then
   fi
 fi
 
+if [[ "$selected_model" == gpt-6-astra* && "${CCX_SKIP_HEALTH_CHECK:-0}" != '1' ]]; then
+  model_catalog="$(curl --silent --fail --max-time 3 "$proxy_url/v1/models" | tr -d '[:space:]')"
+  if [[ "$model_catalog" != *'"id":"gpt-6-astra"'* ]]; then
+    printf 'ccx: the running proxy does not advertise GPT-6 Astra; install an Astra-capable proxy before using this lane.\n' >&2
+    exit 1
+  fi
+fi
+
 # Prefer a retry shim when one is configured (CCX_SHIM_URL): it transparently
-# retries transient 401/5xx responses from the proxy (token-refresh races
+# retries a transient 401 from the proxy (token-refresh races
 # under parallel load) that would otherwise kill subagents and workflows.
 # See scripts/ccx-retry-shim.py.
 base_url="$proxy_url"
@@ -427,6 +461,61 @@ for argument in "$@"; do
 done
 
 claude_command=("$claude_bin" --model "$selected_model")
+# Add missing recognition metadata without replacing caller settings or picker rows.
+if [[ "$selected_model" == gpt-6-astra* ]]; then
+  astra_options='[{"model":"gpt-6-astra","label":"GPT-6 Astra (OpenAI subscription)","behavesAs":"claude-opus-4-6"},{"model":"gpt-6-astra-fast","label":"GPT-6 Astra Fast (OpenAI subscription)","behavesAs":"claude-opus-4-6"}]'
+  settings_value='{}'
+  caller_settings=0
+  remaining_arguments=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --settings)
+        if [[ $# -lt 2 ]]; then
+          printf 'ccx: --settings requires JSON or a file path\n' >&2
+          exit 2
+        fi
+        settings_value="$2"
+        caller_settings=1
+        shift 2
+        ;;
+      --settings=*) settings_value="${1#--settings=}"; caller_settings=1; shift ;;
+      --) remaining_arguments+=("$@"); break ;;
+      *) remaining_arguments+=("$1"); shift ;;
+    esac
+  done
+  if [[ "$caller_settings" -eq 0 ]]; then
+    merged_settings="{\"modelPicker\":{\"options\":$astra_options}}"
+  else
+    if ! command -v jq >/dev/null 2>&1; then
+      printf 'ccx: merging Astra --settings requires jq; install jq and retry\n' >&2
+      exit 2
+    fi
+    # Never print parsing errors: a settings object may contain private values.
+    if [[ -f "$settings_value" ]]; then
+      if ! settings_value="$(cat -- "$settings_value" 2>/dev/null)"; then
+        printf 'ccx: cannot read --settings file\n' >&2
+        exit 2
+      fi
+    fi
+    if ! merged_settings="$(printf '%s' "$settings_value" | jq -cse --argjson defaults "$astra_options" '
+      if length != 1 or (.[0] | type) != "object" then error("object required") else .[0] end
+      | if has("modelPicker") then . else .modelPicker = {} end
+      | if (.modelPicker | type) != "object" then error("picker object required") else . end
+      | if (.modelPicker | has("options")) then . else .modelPicker.options = [] end
+      | if (.modelPicker.options | type) != "array" then error("options array required") else . end
+      | if any(.modelPicker.options[]; type != "object") then error("row object required") else . end
+      | reduce $defaults[] as $d (. ;
+          if any(.modelPicker.options[]; .model == $d.model) then
+            .modelPicker.options |= map(if .model == $d.model then $d * . else . end)
+          else .modelPicker.options += [$d] end)
+    ' 2>/dev/null)"; then
+      printf 'ccx: --settings must be a readable JSON object with a valid modelPicker; no request was sent\n' >&2
+      exit 2
+    fi
+  fi
+  claude_command+=(--settings "$merged_settings")
+  set -- "${remaining_arguments[@]}"
+fi
 if [[ "$has_effort_argument" -eq 0 ]]; then
   claude_command+=(--effort "$selected_effort")
 fi

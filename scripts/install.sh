@@ -22,7 +22,7 @@ Usage: ./scripts/install.sh [options]
 Options:
   --with-agent   Install the optional high-effort custom sub-agent
   --login        Start interactive Codex OAuth if authentication is missing
-  --no-service   Do not start the Homebrew background service
+  --no-service   Do not start the configured background service
   -h, --help     Show this help
 EOF
 }
@@ -53,6 +53,10 @@ for command_name in brew curl install; do
     exit 1
   fi
 done
+
+if ! command -v jq >/dev/null 2>&1; then
+  brew install jq
+fi
 
 if ! command -v claude >/dev/null 2>&1; then
   printf 'install: Claude Code is missing. Install it from https://code.claude.com/docs/en/setup\n' >&2
@@ -128,10 +132,13 @@ brew ruby "$repo_root/scripts/configure-proxy-transport.rb" \
   "$proxy_transport"
 
 if [[ "$skip_service" -eq 0 ]]; then
-  # A failed service start must not abort the install: the launcher and
-  # config below are still needed, and bin/ccx starts the proxy on demand.
-  if ! brew services start claude-code-proxy >/dev/null 2>&1 && \
-     ! brew services start raine/claude-code-proxy/claude-code-proxy >/dev/null 2>&1; then
+  managed_service="${CCX_PROXY_SERVICE:-$(sed -n 's/^CCX_PROXY_SERVICE=//p' "$config_target" | tail -n 1)}"
+  if [[ -n "$managed_service" && "$(uname -s)" == Darwin ]]; then
+    if ! launchctl kickstart "gui/$(id -u)/$managed_service" >/dev/null 2>&1; then
+      printf 'install: warning: managed proxy service could not start: %s\n' "$managed_service" >&2
+    fi
+  elif ! brew services start claude-code-proxy >/dev/null 2>&1 && \
+       ! brew services start raine/claude-code-proxy/claude-code-proxy >/dev/null 2>&1; then
     printf 'install: warning: could not start the proxy via brew services.\n' >&2
     printf 'install: continuing; ccx starts the proxy on demand, or rerun with --no-service.\n' >&2
   fi

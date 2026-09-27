@@ -152,6 +152,8 @@ function Get-UtilityAliasFromWireModel {
     param([Parameter(Mandatory = $true)][string]$Model)
 
     switch -CaseSensitive ($Model) {
+        'gpt-6-astra' { return 'astra' }
+        'gpt-6-astra-fast' { return 'astra-fast' }
         'gpt-5.6-sol[1m]' { return 'sol' }
         'gpt-5.6-sol' { return 'sol' }
         'gpt-5.6-sol-fast[1m]' { return 'sol-fast' }
@@ -194,6 +196,8 @@ function Get-WireModelFromAlias {
     param([Parameter(Mandatory = $true)][string]$Alias)
 
     switch -CaseSensitive ($Alias) {
+        'astra' { return 'gpt-6-astra' }
+        'astra-fast' { return 'gpt-6-astra-fast' }
         'sol' { return 'gpt-5.6-sol[1m]' }
         'sol-fast' { return 'gpt-5.6-sol-fast[1m]' }
         'terra' { return 'gpt-5.6-terra[1m]' }
@@ -471,7 +475,7 @@ function Invoke-Setup {
         }
         else {
             $selectedMainModel = Select-SetupOption '1. Main model for normal ccx sessions' $defaultMainModel @(
-                'sol', 'sol-fast', 'terra', 'terra-fast', 'luna', 'luna-fast',
+                'astra', 'astra-fast', 'sol', 'sol-fast', 'terra', 'terra-fast', 'luna', 'luna-fast',
                 '5.5', '5.5-fast', '5.4', '5.4-fast', 'mini', 'mini-fast',
                 '5.3', '5.3-fast', 'spark', 'spark-fast', '5.2', '5.2-fast'
             )
@@ -497,7 +501,7 @@ function Invoke-Setup {
         }
         else {
             $selectedBgModel = Select-SetupOption '3. Model for the ccx bg lane' $defaultBgModel @(
-                'sol', 'sol-fast', 'terra', 'terra-fast', 'luna', 'luna-fast',
+                'astra', 'astra-fast', 'sol', 'sol-fast', 'terra', 'terra-fast', 'luna', 'luna-fast',
                 '5.5', '5.5-fast', '5.4', '5.4-fast', 'mini', 'mini-fast',
                 '5.3', '5.3-fast', 'spark', 'spark-fast', '5.2', '5.2-fast'
             )
@@ -523,7 +527,7 @@ function Invoke-Setup {
         }
         else {
             $selectedUtilityModel = Select-SetupOption '5. Utility model for titles, token counts, and small background requests' $defaultUtilityModel @(
-                'sol', 'sol-fast', 'terra', 'terra-fast', 'luna', 'luna-fast',
+                'astra', 'astra-fast', 'sol', 'sol-fast', 'terra', 'terra-fast', 'luna', 'luna-fast',
                 '5.5', '5.5-fast', '5.4', '5.4-fast', 'mini', 'mini-fast',
                 '5.3', '5.3-fast', 'spark', 'spark-fast', '5.2', '5.2-fast'
             )
@@ -641,7 +645,7 @@ function Invoke-Setup {
         $renderedText += @'
 
 # CCX_CONTEXT_WINDOW is intentionally unset: the launcher picks the correct
-# per-model boundary (967000 for most lanes, 128000 for spark). Set it only
+# per-model boundary (272000 for most lanes, 128000 for spark). Set it only
 # to force a specific value for every model.
 '@
     }

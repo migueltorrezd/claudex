@@ -164,12 +164,20 @@ Assert-ContainsLine $normalOutput 'SMALL_FAST=gpt-5.6-sol[1m]'
 Assert-ContainsLine $normalOutput 'EFFORT_ENV=unset'
 Assert-ContainsLine $normalOutput 'ARG=xhigh'
 Assert-ContainsLine $normalOutput 'BASE_URL=http://127.0.0.1:18765'
-Assert-ContainsLine $normalOutput 'COMPACT_WINDOW=967000'
+Assert-ContainsLine $normalOutput 'COMPACT_WINDOW=272000'
 Assert-ContainsLine $normalOutput 'MAX_CONCURRENT_SUBAGENTS=3'
 Assert-ContainsLine $normalOutput 'MAX_SUBAGENTS_PER_SESSION=12'
 Assert-ContainsLine $normalOutput 'MAX_SUBAGENT_SPAWN_DEPTH=1'
 Assert-ContainsLine $normalOutput 'MAX_RETRIES=3'
 Assert-ContainsLine $normalOutput 'API_TIMEOUT_MS=300000'
+
+foreach ($astraAlias in @('astra', 'gpt-6-astra', 'gpt-6-astra[1m]')) {
+    $astraOutput = (Invoke-Ccx -Environment (New-TestEnvironment) -Arguments @($astraAlias, '-p', 'test')).Output
+    Assert-ContainsLine $astraOutput 'MODEL=gpt-6-astra'
+    Assert-ContainsLine $astraOutput 'ARG=medium'
+    Assert-ContainsLine $astraOutput 'COMPACT_WINDOW=272000'
+    Assert-DoesNotContainLine $astraOutput 'ARG=astra'
+}
 
 $sparkOutput = (Invoke-Ccx -Environment (New-TestEnvironment) -Arguments @('spark', '-p', 'test')).Output
 Assert-ContainsLine $sparkOutput 'MODEL=gpt-5.3-codex-spark'
@@ -210,42 +218,42 @@ Assert-ContainsLine $terraOutput 'MODEL=gpt-5.6-terra[1m]'
 
 # Every documented alias and canonical model ID routes to the intended model.
 $modelCases = @(
-    @{ Argument = 'sol'; ExpectedModel = 'gpt-5.6-sol[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'sol-fast'; ExpectedModel = 'gpt-5.6-sol-fast[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'terra'; ExpectedModel = 'gpt-5.6-terra[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'terra-fast'; ExpectedModel = 'gpt-5.6-terra-fast[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'luna'; ExpectedModel = 'gpt-5.6-luna[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'luna-fast'; ExpectedModel = 'gpt-5.6-luna-fast[1m]'; ExpectedContext = '967000' },
-    @{ Argument = '5.5'; ExpectedModel = 'gpt-5.5[1m]'; ExpectedContext = '967000' },
-    @{ Argument = '5.5-fast'; ExpectedModel = 'gpt-5.5-fast[1m]'; ExpectedContext = '967000' },
-    @{ Argument = '5.4'; ExpectedModel = 'gpt-5.4[1m]'; ExpectedContext = '967000' },
-    @{ Argument = '5.4-fast'; ExpectedModel = 'gpt-5.4-fast[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'mini'; ExpectedModel = 'gpt-5.4-mini[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'mini-fast'; ExpectedModel = 'gpt-5.4-mini-fast[1m]'; ExpectedContext = '967000' },
-    @{ Argument = '5.3'; ExpectedModel = 'gpt-5.3-codex[1m]'; ExpectedContext = '967000' },
-    @{ Argument = '5.3-fast'; ExpectedModel = 'gpt-5.3-codex-fast[1m]'; ExpectedContext = '967000' },
+    @{ Argument = 'sol'; ExpectedModel = 'gpt-5.6-sol[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'sol-fast'; ExpectedModel = 'gpt-5.6-sol-fast[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'terra'; ExpectedModel = 'gpt-5.6-terra[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'terra-fast'; ExpectedModel = 'gpt-5.6-terra-fast[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'luna'; ExpectedModel = 'gpt-5.6-luna[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'luna-fast'; ExpectedModel = 'gpt-5.6-luna-fast[1m]'; ExpectedContext = '272000' },
+    @{ Argument = '5.5'; ExpectedModel = 'gpt-5.5[1m]'; ExpectedContext = '272000' },
+    @{ Argument = '5.5-fast'; ExpectedModel = 'gpt-5.5-fast[1m]'; ExpectedContext = '272000' },
+    @{ Argument = '5.4'; ExpectedModel = 'gpt-5.4[1m]'; ExpectedContext = '272000' },
+    @{ Argument = '5.4-fast'; ExpectedModel = 'gpt-5.4-fast[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'mini'; ExpectedModel = 'gpt-5.4-mini[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'mini-fast'; ExpectedModel = 'gpt-5.4-mini-fast[1m]'; ExpectedContext = '272000' },
+    @{ Argument = '5.3'; ExpectedModel = 'gpt-5.3-codex[1m]'; ExpectedContext = '272000' },
+    @{ Argument = '5.3-fast'; ExpectedModel = 'gpt-5.3-codex-fast[1m]'; ExpectedContext = '272000' },
     @{ Argument = 'spark'; ExpectedModel = 'gpt-5.3-codex-spark'; ExpectedContext = '128000' },
     @{ Argument = 'spark-fast'; ExpectedModel = 'gpt-5.3-codex-spark-fast'; ExpectedContext = '128000' },
-    @{ Argument = '5.2'; ExpectedModel = 'gpt-5.2[1m]'; ExpectedContext = '967000' },
-    @{ Argument = '5.2-fast'; ExpectedModel = 'gpt-5.2-fast[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'gpt-5.6-sol'; ExpectedModel = 'gpt-5.6-sol[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'gpt-5.6-sol-fast'; ExpectedModel = 'gpt-5.6-sol-fast[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'gpt-5.6-terra'; ExpectedModel = 'gpt-5.6-terra[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'gpt-5.6-terra-fast'; ExpectedModel = 'gpt-5.6-terra-fast[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'gpt-5.6-luna'; ExpectedModel = 'gpt-5.6-luna[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'gpt-5.6-luna-fast'; ExpectedModel = 'gpt-5.6-luna-fast[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'gpt-5.5'; ExpectedModel = 'gpt-5.5[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'gpt-5.5-fast'; ExpectedModel = 'gpt-5.5-fast[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'gpt-5.4'; ExpectedModel = 'gpt-5.4[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'gpt-5.4-fast'; ExpectedModel = 'gpt-5.4-fast[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'gpt-5.4-mini'; ExpectedModel = 'gpt-5.4-mini[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'gpt-5.4-mini-fast'; ExpectedModel = 'gpt-5.4-mini-fast[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'gpt-5.3-codex'; ExpectedModel = 'gpt-5.3-codex[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'gpt-5.3-codex-fast'; ExpectedModel = 'gpt-5.3-codex-fast[1m]'; ExpectedContext = '967000' },
+    @{ Argument = '5.2'; ExpectedModel = 'gpt-5.2[1m]'; ExpectedContext = '272000' },
+    @{ Argument = '5.2-fast'; ExpectedModel = 'gpt-5.2-fast[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'gpt-5.6-sol'; ExpectedModel = 'gpt-5.6-sol[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'gpt-5.6-sol-fast'; ExpectedModel = 'gpt-5.6-sol-fast[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'gpt-5.6-terra'; ExpectedModel = 'gpt-5.6-terra[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'gpt-5.6-terra-fast'; ExpectedModel = 'gpt-5.6-terra-fast[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'gpt-5.6-luna'; ExpectedModel = 'gpt-5.6-luna[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'gpt-5.6-luna-fast'; ExpectedModel = 'gpt-5.6-luna-fast[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'gpt-5.5'; ExpectedModel = 'gpt-5.5[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'gpt-5.5-fast'; ExpectedModel = 'gpt-5.5-fast[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'gpt-5.4'; ExpectedModel = 'gpt-5.4[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'gpt-5.4-fast'; ExpectedModel = 'gpt-5.4-fast[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'gpt-5.4-mini'; ExpectedModel = 'gpt-5.4-mini[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'gpt-5.4-mini-fast'; ExpectedModel = 'gpt-5.4-mini-fast[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'gpt-5.3-codex'; ExpectedModel = 'gpt-5.3-codex[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'gpt-5.3-codex-fast'; ExpectedModel = 'gpt-5.3-codex-fast[1m]'; ExpectedContext = '272000' },
     @{ Argument = 'gpt-5.3-codex-spark'; ExpectedModel = 'gpt-5.3-codex-spark'; ExpectedContext = '128000' },
     @{ Argument = 'gpt-5.3-codex-spark-fast'; ExpectedModel = 'gpt-5.3-codex-spark-fast'; ExpectedContext = '128000' },
-    @{ Argument = 'gpt-5.2'; ExpectedModel = 'gpt-5.2[1m]'; ExpectedContext = '967000' },
-    @{ Argument = 'gpt-5.2-fast'; ExpectedModel = 'gpt-5.2-fast[1m]'; ExpectedContext = '967000' }
+    @{ Argument = 'gpt-5.2'; ExpectedModel = 'gpt-5.2[1m]'; ExpectedContext = '272000' },
+    @{ Argument = 'gpt-5.2-fast'; ExpectedModel = 'gpt-5.2-fast[1m]'; ExpectedContext = '272000' }
 )
 foreach ($modelCase in $modelCases) {
     $modelOutput = (Invoke-Ccx -Environment (New-TestEnvironment) -Arguments @($modelCase.Argument, '-p', 'test')).Output
@@ -465,6 +473,39 @@ try {
 finally {
     Remove-Item -LiteralPath $proxyStubDirectory -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $proxyCaptureFile -Force -ErrorAction SilentlyContinue
+}
+
+$catalogOutput = (Invoke-Ccx -Environment (New-TestEnvironment) -Arguments @('astra', '-p', 'test')).Output
+Assert-ContainsLine $catalogOutput 'MODEL=gpt-6-astra'
+if ($catalogOutput -notmatch '"behavesAs":"claude-opus-4-6"') { throw 'Astra client profile missing' }
+foreach ($settingsArguments in @(
+    @{ Values = @('--settings', '{"permissions":{"defaultMode":"plan"}}') },
+    @{ Values = @('--settings={"permissions":{"defaultMode":"plan"}}') }
+)) {
+    $explicitOutput = (Invoke-Ccx -Environment (New-TestEnvironment) -Arguments (@('astra') + $settingsArguments.Values + @('-p', 'test'))).Output
+    if ($explicitOutput -notmatch 'behavesAs') { throw 'Astra profile missing with caller settings' }
+    if ($explicitOutput -notmatch '"defaultMode":"plan"') { throw 'Caller settings were lost' }
+}
+$solCatalogOutput = (Invoke-Ccx -Environment (New-TestEnvironment) -Arguments @('sol', '-p', 'test')).Output
+if ($solCatalogOutput -match 'behavesAs') { throw 'Astra profile leaked into another lane' }
+
+$customSettingsFile = Join-Path ([IO.Path]::GetTempPath()) ([Guid]::NewGuid().ToString() + ' settings.json')
+$originalSettings = '{"env":{"TEST_VALUE":"literal $(ignored)"},"permissions":{"allow":["Read"]},"modelPicker":{"replaceBuiltInOptions":true,"options":[{"model":"other-model","label":"Keep me"},{"model":"gpt-6-astra","label":"My Astra","behavesAs":"claude-opus-4-8"}]}}'
+try {
+    [IO.File]::WriteAllText($customSettingsFile, $originalSettings)
+    $fileOutput = (Invoke-Ccx -Environment (New-TestEnvironment) -Arguments @('astra', '--settings', $customSettingsFile, '-p', 'test')).Output
+    $jsonLine = @($fileOutput -split "`r?`n" | Where-Object { $_ -clike 'ARG={*' })[0].Substring(4)
+    $merged = ConvertFrom-Json $jsonLine
+    if ($merged.permissions.allow[0] -cne 'Read' -or $merged.env.TEST_VALUE -cne 'literal $(ignored)') { throw 'Settings changed' }
+    if (-not $merged.modelPicker.replaceBuiltInOptions -or $merged.modelPicker.options.Count -ne 3) { throw 'Picker changed' }
+    if ($merged.modelPicker.options[1].label -cne 'My Astra' -or $merged.modelPicker.options[1].behavesAs -cne 'claude-opus-4-8') { throw 'Explicit profile changed' }
+    if ([IO.File]::ReadAllText($customSettingsFile) -cne $originalSettings) { throw 'Source file changed' }
+}
+finally { Remove-Item -LiteralPath $customSettingsFile -Force -ErrorAction SilentlyContinue }
+foreach ($invalidSettings in @('{secret', '[]', '{"modelPicker":null}', '{"modelPicker":{"options":{}}}')) {
+    $invalidResult = Invoke-Ccx -Environment (New-TestEnvironment) -Arguments @('astra', '--settings', $invalidSettings, '-p', 'test') -AllowFailure
+    if ($invalidResult.ExitCode -eq 0) { throw 'Invalid settings accepted' }
+    if ($invalidResult.Output -match 'secret') { throw 'Settings value leaked' }
 }
 
 Write-Output 'All ccx launcher tests passed.'
